@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     APP_ENABLE_DOCS: bool = False
 
     API_PREFIX: str = "/api"
-    API_ALLOW_ORIGINS: List[AnyHttpUrl] = []
+    API_ALLOW_ORIGINS: List[AnyHttpUrl] = ["http://localhost:3000", "http://localhost:8000"]
 
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
