@@ -1,0 +1,1 @@
+from .thumbnail_request import CreateThumbnailRequest
