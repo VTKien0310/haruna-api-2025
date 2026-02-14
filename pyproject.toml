@@ -1,7 +1,7 @@
 [project]
 name = "haruna-api-2025"
 version = "0.1.0"
-description = "Add your description here"
+description = "Back-end API for the HarunaDB project"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
