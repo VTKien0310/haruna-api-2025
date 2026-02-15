@@ -1,13 +1,15 @@
-from typing import Annotated
-from fastapi import Depends
-from PIL import Image
 import io
-from app.features.media.entities import Media, MediaType
-from app.ports import SupabasePort
+from typing import Annotated
+
+from PIL import Image
+from fastapi import Depends
+
+from app.features.media.entities import Media
+from app.ports import SupabasePortDep
 
 
 class CreateMediaThumbnailService:
-    def __init__(self, supabase: Annotated[SupabasePort, Depends()]):
+    def __init__(self, supabase: SupabasePortDep):
         self.__supabase = supabase
 
     def handle(self, media: Media, width: int, height: int) -> str:
@@ -65,7 +67,8 @@ class CreateMediaThumbnailService:
         )
         return len(result) > 0
 
-    def __make_thumbnail_name(self, width: int, height: int) -> str:
+    @staticmethod
+    def __make_thumbnail_name(width: int, height: int) -> str:
         return f"{width}x{height}.jpeg"
 
     def __make_thumbnail_signed_url(self, media: Media, width: int, height: int) -> str:

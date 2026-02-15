@@ -1,1 +1,1 @@
-from app.ports.spb import SupabasePort
+from app.ports.spb import SupabasePort, SupabasePortDep

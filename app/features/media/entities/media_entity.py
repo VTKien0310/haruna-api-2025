@@ -1,6 +1,4 @@
-from typing import Annotated
-from fastapi import Depends
-from app.ports import SupabasePort
+from app.ports import SupabasePortDep
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -28,10 +26,11 @@ class Media:
 
 
 class MediaRepository:
-    def __init__(self, supabase: Annotated[SupabasePort, Depends()]):
+    def __init__(self, supabase: SupabasePortDep):
         self.__supabase = supabase
 
-    def __single_media_from_dict(self, data: dict[str, str | int]) -> Media:
+    @staticmethod
+    def __single_media_from_dict(data: dict[str, str | int]) -> Media:
         return Media(
             id=data["id"],
             name=data["name"],

@@ -1,6 +1,8 @@
 from functools import lru_cache
 from supabase import create_client, Client
 from app.core.config import settings
+from typing import Annotated
+from fastapi import Depends
 
 
 @lru_cache()
@@ -30,3 +32,6 @@ class SupabasePort:
 
     def auth(self):
         return self.__client.auth
+
+
+SupabasePortDep = Annotated[SupabasePort, Depends()]
