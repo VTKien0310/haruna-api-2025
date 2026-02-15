@@ -16,7 +16,6 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        # Verify the token with Supabase
         user = supabase.auth().get_user(token)
         if user is None:
             raise HTTPException(
