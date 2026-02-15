@@ -5,16 +5,14 @@ description = "Back-end API for the HarunaDB project"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.122.0",
-    "pillow>=12.0.0",
+    "fastapi[standard]>=0.129.0",
+    "uvicorn[standard]>=0.30.0",
+    "pillow>=12.1.1",
     "pydantic-settings>=2.12.0",
     "supabase>=2.27.0",
-    "uvicorn>=0.38.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
-    "pytest>=9.0.2",
     "ruff>=0.14.10",
 ]
