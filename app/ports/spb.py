@@ -1,6 +1,6 @@
 from functools import lru_cache
 from supabase import create_client, Client
-from app.core.config import settings
+from app.core import settings
 from typing import Annotated
 from fastapi import Depends
 
