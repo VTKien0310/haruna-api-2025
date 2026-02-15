@@ -16,6 +16,16 @@ class Media:
     storage_path: str
     thumbnail_path: str | None
 
+    @classmethod
+    def from_spb_data(cls, data: dict[str, str | int]) -> Media:
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            type=MediaType(data["type"]),
+            storage_path=data["storage_path"],
+            thumbnail_path=data.get("thumbnail_path"),
+        )
+
     @property
     def is_video(self) -> bool:
         return self.type == MediaType.VIDEO
@@ -28,16 +38,6 @@ class Media:
 class MediaRepository:
     def __init__(self, supabase: SupabasePortDep):
         self.__supabase = supabase
-
-    @staticmethod
-    def __single_media_from_dict(data: dict[str, str | int]) -> Media:
-        return Media(
-            id=data["id"],
-            name=data["name"],
-            type=MediaType(data["type"]),
-            storage_path=data["storage_path"],
-            thumbnail_path=data.get("thumbnail_path"),
-        )
 
     def find_by_id(self, media_id: str) -> Media | None:
         result = (
@@ -52,4 +52,4 @@ class MediaRepository:
         if result is None:
             return None
 
-        return self.__single_media_from_dict(result)
+        return Media.from_spb_data(result)
