@@ -1,1 +1,1 @@
-from app.ports.supabase import SupabasePort
+from app.ports.spb import SupabasePort

@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.ports.supabase import SupabasePort
+from app.ports import SupabasePort
 
 security = HTTPBearer()
 
