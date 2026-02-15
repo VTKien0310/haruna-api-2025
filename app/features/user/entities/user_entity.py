@@ -11,7 +11,7 @@ class User:
     created_at: datetime
 
     @classmethod
-    def from_spb_data(cls, data: dict[str, str | int | datetime]) -> User:
+    def from_spb_auth(cls, data: dict[str, str | int | datetime]) -> User:
         return cls(
             id=data["id"],
             aud=data["aud"],
