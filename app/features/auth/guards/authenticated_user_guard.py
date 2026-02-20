@@ -2,12 +2,12 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.ports import SupabasePortDep
-from app.features.user.entities import User
+from app.features.user.entities import User, UserRepository
 
 security = HTTPBearer()
 
 
-async def get_current_user(
+async def get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     supabase: SupabasePortDep,
 ) -> User:
@@ -22,7 +22,7 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return User.from_spb_auth(spb_response.user)
+        return UserRepository.user_from_spb_auth(spb_response.user)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -31,4 +31,5 @@ async def get_current_user(
         )
 
 
-AuthenticatedUserGuardDep = Annotated[User, Depends(get_current_user)]
+AuthenticatedGuardDep = Depends(get_user_from_supabase_token)
+CurrentAuthenticatedUserDep = Annotated[User, Depends(get_user_from_supabase_token)]

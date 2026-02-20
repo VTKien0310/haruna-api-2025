@@ -1,10 +1,14 @@
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Depends
+
+from app.features.auth.guards import AuthenticatedGuardDep
 from app.features.media.entities import MediaRepository
 from app.features.media.requests import CreateThumbnailRequest
 from app.features.media.services import CreateMediaThumbnailService
 
-router = APIRouter(prefix="/medias", tags=["thumbnails"])
+router = APIRouter(
+    prefix="/medias", tags=["thumbnails"], dependencies=[AuthenticatedGuardDep]
+)
 
 
 @router.post("/{media_id}/thumbnails")
