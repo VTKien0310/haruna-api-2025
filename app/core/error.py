@@ -44,13 +44,20 @@ async def _app_exception_handler(request: Request, exc: AppException):
 
 
 async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    error_details = list(
+        map(
+            lambda e: {"loc": e["loc"][-1], "msg": e["msg"], "type": e["type"]},
+            exc.errors(),
+        )
+    )
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
             "error": {
                 "code": "validation_error",
                 "message": "Invalid request body",
-                "details": exc.errors(),
+                "details": error_details,
                 "path": request.url.path,
             }
         },
