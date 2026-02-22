@@ -18,13 +18,13 @@ def bootstrap_application(router_registry: List[APIRouter]) -> FastAPI:
     apply_global_response_interface(app)
     register_error_handlers(app)
 
-    config_cors(app)
-    load_routes(app, router_registry)
+    _config_cors(app)
+    _load_routes(app, router_registry)
 
     return app
 
 
-def config_cors(app: FastAPI) -> None:
+def _config_cors(app: FastAPI) -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.API_ALLOW_ORIGINS,
@@ -34,6 +34,6 @@ def config_cors(app: FastAPI) -> None:
     )
 
 
-def load_routes(app: FastAPI, router_registry: List[APIRouter]) -> None:
+def _load_routes(app: FastAPI, router_registry: List[APIRouter]) -> None:
     for router in router_registry:
         app.include_router(router, prefix=settings.API_PREFIX)

@@ -4,7 +4,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 
-class WrapResponseMiddleware(BaseHTTPMiddleware):
+class _WrapResponseMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
 
@@ -26,4 +26,4 @@ class WrapResponseMiddleware(BaseHTTPMiddleware):
 
 
 def apply_global_response_interface(app: FastAPI) -> None:
-    app.add_middleware(WrapResponseMiddleware)
+    app.add_middleware(_WrapResponseMiddleware)

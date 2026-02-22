@@ -7,7 +7,7 @@ from app.features.auth.entities import User, UserRepository
 security = HTTPBearer()
 
 
-async def get_user_from_supabase_token(
+async def _get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     supabase: SupabasePortDep,
 ) -> User:
@@ -31,5 +31,5 @@ async def get_user_from_supabase_token(
         )
 
 
-AuthenticatedGuardDep = Depends(get_user_from_supabase_token)
-CurrentAuthenticatedUserDep = Annotated[User, Depends(get_user_from_supabase_token)]
+AuthenticatedGuardDep = Depends(_get_user_from_supabase_token)
+CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_token)]

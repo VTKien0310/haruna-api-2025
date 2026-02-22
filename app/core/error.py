@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 
-async def http_exception_handler(request: Request, exc: HTTPException):
+async def _http_exception_handler(request: Request, exc: HTTPException):
     error_code = {
         status.HTTP_401_UNAUTHORIZED: "unauthorized",
         status.HTTP_403_FORBIDDEN: "forbidden",
@@ -30,7 +30,7 @@ class AppException(HTTPException):
         self.code = code
 
 
-async def app_exception_handler(request: Request, exc: AppException):
+async def _app_exception_handler(request: Request, exc: AppException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -43,7 +43,7 @@ async def app_exception_handler(request: Request, exc: AppException):
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
@@ -58,6 +58,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 def register_error_handlers(app: FastAPI):
-    app.add_exception_handler(HTTPException, http_exception_handler)
-    app.add_exception_handler(AppException, app_exception_handler)
-    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(HTTPException, _http_exception_handler)
+    app.add_exception_handler(AppException, _app_exception_handler)
+    app.add_exception_handler(RequestValidationError, _validation_exception_handler)

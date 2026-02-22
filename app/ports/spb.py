@@ -6,7 +6,7 @@ from fastapi import Depends
 
 
 @lru_cache()
-def get_supabase_client() -> Client:
+def _get_supabase_client() -> Client:
     """Create and cache a single Supabase client instance."""
     return create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -16,7 +16,7 @@ def get_supabase_client() -> Client:
 
 class SupabasePort:
     def __init__(self):
-        self.__client = get_supabase_client()
+        self.__client = _get_supabase_client()
 
     def storage_media(self):
         return self.__client.storage.from_("medias")
