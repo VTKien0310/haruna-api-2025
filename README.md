@@ -3,6 +3,7 @@
 ## About
 
 This application is the back-end API for the HarunaDB project.
+It provides a small amount of functionality that should or can only run on the server to support the project's needs.
 
 The application's namesake is derived from the
 battleship [Haruna](https://en.wikipedia.org/wiki/Japanese_battleship_Haruna).
@@ -70,7 +71,7 @@ This project is ready to run on Fly.io using the included `Dockerfile` and `fly.
 
 ### Notes:
 
-- The service listens on internal port 8080 (mapped to 80/443 externally). `PORT=8080` is set in `fly.toml` and the
+- The service listens on internal port 8000 (mapped to 80/443 externally). `PORT=8000` is set in `fly.toml` and the
   scontainer.
 - The app uses `pydantic-settings`; environment variables can override defaults in `app/core/config.py`.
 - Scale memory/CPU (example): `fly scale vm shared-cpu-1x --memory 256`
@@ -79,5 +80,5 @@ This project is ready to run on Fly.io using the included `Dockerfile` and `fly.
 ## Local build/run
 
 - Build: `docker build -t haruna-api-2025 .`
-- Run: `docker run -p 8080:8080 haruna-api-2025`
-- The app will be available at: `http://localhost:8080/`
+- Run: `docker run -p 8000:8000 haruna-api-2025`
+- The app will be available at: `http://localhost:8000/`
