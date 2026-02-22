@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, HTTPException, Path, Depends
+from fastapi import APIRouter, HTTPException, Path, Depends, status
 
 from app.features.auth.guards import AuthenticatedGuardDep
 from app.features.media.entities import MediaRepository
@@ -23,7 +23,7 @@ async def create_thumbnail(
     media = media_repo.find_by_id(media_id)
     if media is None:
         raise HTTPException(
-            status_code=404, detail=f"Media with ID '{media_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Media with ID '{media_id}' not found"
         )
 
     return {
