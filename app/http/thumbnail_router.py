@@ -23,7 +23,8 @@ async def create_thumbnail(
     media = media_repo.find_by_id(media_id)
     if media is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Media with ID '{media_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Media with ID '{media_id}' not found",
         )
 
     return {
