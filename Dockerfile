@@ -8,6 +8,11 @@ RUN apt-get update && apt-get install -y \
     g++ \
     build-essential \
     postgresql-client \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libwebp-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files

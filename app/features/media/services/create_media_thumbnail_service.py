@@ -1,8 +1,6 @@
 import io
-from typing import Annotated
 
 from PIL import Image
-from fastapi import Depends
 
 from app.features.media.entities import Media
 from app.ports import SupabasePortDep
