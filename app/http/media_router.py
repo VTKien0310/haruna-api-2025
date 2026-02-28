@@ -7,8 +7,12 @@ from app.features.media.requests import CreateThumbnailRequest
 from app.features.media.services import CreateMediaThumbnailService
 
 router = APIRouter(
-    prefix="/medias", tags=["thumbnails"], dependencies=[AuthenticatedGuardDep]
+    prefix="/medias", tags=["medias"], dependencies=[AuthenticatedGuardDep]
 )
+
+@router.post("/videos")
+async def create_video_media():
+    pass
 
 
 @router.post("/{media_id}/thumbnails")

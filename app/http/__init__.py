@@ -1,5 +1,5 @@
-from app.http.thumbnail_router import router as thumbnail_router
+from app.http.media_router import router as media_router
 
 router_registry = [
-    thumbnail_router,
+    media_router,
 ]
