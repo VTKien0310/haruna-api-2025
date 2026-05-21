@@ -21,6 +21,12 @@ battleship [Haruna](https://en.wikipedia.org/wiki/Japanese_battleship_Haruna).
 
 ## Project setup for development
 
+### Create a virtual environment
+
+```shell
+uv venv
+```
+
 ### Install dependencies using uv
 
 ```shell
