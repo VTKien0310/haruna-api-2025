@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .core import settings, bootstrap_application
+from .core import bootstrap_application
 from .http import router_registry
 
 
