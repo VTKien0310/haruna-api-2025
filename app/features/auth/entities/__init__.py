@@ -1,1 +1,1 @@
-from .user_entity import User, UserRepository, UserRepositoryDep
+from .user_entity import User as User

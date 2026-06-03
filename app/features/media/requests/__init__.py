@@ -1,1 +1,1 @@
-from .thumbnail_request import CreateThumbnailRequest
+from .thumbnail_request import CreateThumbnailRequest as CreateThumbnailRequest

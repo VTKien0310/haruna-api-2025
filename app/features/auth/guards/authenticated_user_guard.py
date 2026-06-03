@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.ports import SupabasePortDep
-from app.features.auth.entities import User, UserRepository
+from app.features.auth.entities import User
 
 security = HTTPBearer()
 
@@ -22,7 +22,7 @@ async def _get_user_from_supabase_token(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return UserRepository.user_from_spb_auth(spb_response.user)
+        return User.from_spb_auth(spb_response.user)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

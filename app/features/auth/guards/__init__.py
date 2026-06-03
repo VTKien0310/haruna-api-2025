@@ -1,1 +1,2 @@
-from .authenticated_user_guard import CurrentAuthenticatedUserDep, AuthenticatedGuardDep
+from .authenticated_user_guard import CurrentAuthenticatedUserDep as CurrentAuthenticatedUserDep
+from .authenticated_user_guard import AuthenticatedGuardDep as AuthenticatedGuardDep
