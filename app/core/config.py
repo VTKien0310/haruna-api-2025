@@ -23,5 +23,8 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
+    AI_API_ENDPOINT: str = ""
+    AI_API_KEY: str = ""
+
 
 settings = Settings()
