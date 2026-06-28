@@ -3,7 +3,7 @@ import io
 from PIL import Image
 
 from app.features.media.entities import Media
-from app.ports import SupabasePortDep
+from app.ports.supabase import SupabasePortDep
 
 
 class CreateMediaThumbnailService:

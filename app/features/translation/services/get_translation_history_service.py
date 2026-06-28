@@ -1,4 +1,4 @@
-from app.ports import SupabasePortDep
+from app.ports.supabase import SupabasePortDep
 
 
 class GetTranslationHistoryService:

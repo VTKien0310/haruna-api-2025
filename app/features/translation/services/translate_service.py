@@ -1,5 +1,5 @@
 from app.features.translation.requests import TranslateRequest
-from app.ports import SupabasePortDep
+from app.ports.supabase import SupabasePortDep
 
 
 class TranslateService:
