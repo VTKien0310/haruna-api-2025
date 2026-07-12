@@ -1,3 +1,7 @@
+from typing import Annotated
+
+from fastapi import Depends
+
 from app.features.translation.entities import Language
 
 
@@ -36,3 +40,6 @@ class ListLanguagesService:
 
     def handle(self) -> list[Language]:
         return [Language.from_dict(data) for data in self.__supported_languages]
+
+
+ListLanguagesServiceDep = Annotated[ListLanguagesService, Depends()]

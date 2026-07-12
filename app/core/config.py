@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     AI_API_ENDPOINT: str = ""
     AI_API_KEY: str = ""
+    AI_TRANSLATION_MODEL: str = "gpt-5.6-terra"
 
 
 settings = Settings()

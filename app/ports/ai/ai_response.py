@@ -22,6 +22,11 @@ class AiJsonSchemaResponseFormat(AiResponseFormat):
     props: dict
     required: list[str]
 
+    def __init__(self, name: str, props: dict, required: list[str]):
+        self.name = name
+        self.props = props
+        self.required = required
+
     def build(self) -> dict:
         return {
             "type": self.type,
