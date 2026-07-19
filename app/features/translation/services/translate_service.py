@@ -1,4 +1,6 @@
 from app.core import AppException, settings
+from app.features.auth.entities import User
+from app.features.translation.data import CreateTranslationHistoryReaderDep
 from app.features.translation.services import ListLanguagesServiceDep
 from app.ports.ai import (
     AiApiPortDep,
@@ -6,26 +8,26 @@ from app.ports.ai import (
     AiRequestMessage,
     AiRequestRole,
 )
-from app.ports.supabase import SupabasePortDep
 
 
 class TranslateService:
     def __init__(
         self,
-        supabase: SupabasePortDep,
         ai_port: AiApiPortDep,
         list_languages_service: ListLanguagesServiceDep,
+        create_translation_history_reader: CreateTranslationHistoryReaderDep,
     ) -> None:
-        self.__supabase = supabase
         self.__ai_port = ai_port
         self.__list_languages_service = list_languages_service
+        self.__create_translation_history_reader = create_translation_history_reader
 
     async def handle(
         self,
+        user: User,
         source_text: str,
         source_language: str,
         target_language: str,
-    ) -> None:
+    ) -> str:
         supported_codes = {
             language.code for language in self.__list_languages_service.handle()
         }
@@ -74,14 +76,36 @@ class TranslateService:
             ),
         )
 
+        ai_translated_text_key = "translated_text"
+
         response_format = AiJsonSchemaResponseFormat(
             name="translation",
-            props={"translated_text": {"type": "string"}},
-            required=["translated_text"],
+            props={ai_translated_text_key: {"type": "string"}},
+            required=[ai_translated_text_key],
         )
 
-        ai_response = await self.__ai_port.chat_completion(  # noqa: F841
+        ai_response = await self.__ai_port.chat_completion(
             model=settings.AI_TRANSLATION_MODEL,
             messages=[system_message, user_message],
             response_format=response_format,
         )
+
+        content = ai_response["choices"][0]["message"]["content"]
+
+        if not isinstance(content, dict):
+            raise ValueError("AI response is not interpretable")
+
+        if ai_translated_text_key not in content:
+            raise ValueError("AI response is missing translated_text")
+
+        translated_text = content[ai_translated_text_key]
+
+        self.__create_translation_history_reader.handle(
+            owner_id=user.id,
+            source_language=source_language,
+            target_language=target_language,
+            source_text=source_text,
+            translation=translated_text,
+        )
+
+        return translated_text
