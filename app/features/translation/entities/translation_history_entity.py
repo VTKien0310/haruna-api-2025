@@ -9,6 +9,7 @@ class TranslationHistory:
     target_language: str
     source_text: str
     translation: str
+    created_at: str
 
     @classmethod
     def from_spb_data(cls, data: dict[str, str | int]) -> TranslationHistory:
@@ -19,4 +20,5 @@ class TranslationHistory:
             target_language=str(data["target_language"]),
             source_text=str(data["source_text"]),
             translation=str(data["translation"]),
+            created_at=str(data["created_at"]),
         )

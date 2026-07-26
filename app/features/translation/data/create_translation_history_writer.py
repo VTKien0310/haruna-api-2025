@@ -5,7 +5,7 @@ from fastapi import Depends
 from app.ports.supabase import SupabasePortDep
 
 
-class CreateTranslationHistoryReader:
+class CreateTranslationHistoryWriter:
     def __init__(self, supabase: SupabasePortDep) -> None:
         self.__supabase = supabase
 
@@ -28,4 +28,4 @@ class CreateTranslationHistoryReader:
         ).execute()
 
 
-CreateTranslationHistoryReaderDep = Annotated[CreateTranslationHistoryReader, Depends()]
+CreateTranslationHistoryWriterDep = Annotated[CreateTranslationHistoryWriter, Depends()]

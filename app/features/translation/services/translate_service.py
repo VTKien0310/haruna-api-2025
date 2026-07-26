@@ -1,6 +1,9 @@
 from app.core import AppException, settings
 from app.features.auth.entities import User
-from app.features.translation.data import CreateTranslationHistoryReaderDep
+from app.features.translation.data import (
+    CreateTranslationHistoryWriterDep,
+    DeleteOldestTranslationHistoriesWriterDep,
+)
 from app.features.translation.services import ListLanguagesServiceDep
 from app.ports.ai import (
     AiApiPortDep,
@@ -15,11 +18,15 @@ class TranslateService:
         self,
         ai_port: AiApiPortDep,
         list_languages_service: ListLanguagesServiceDep,
-        create_translation_history_reader: CreateTranslationHistoryReaderDep,
+        create_translation_history_writer: CreateTranslationHistoryWriterDep,
+        delete_oldest_translation_histories_writer: DeleteOldestTranslationHistoriesWriterDep,
     ) -> None:
         self.__ai_port = ai_port
         self.__list_languages_service = list_languages_service
-        self.__create_translation_history_reader = create_translation_history_reader
+        self.__create_translation_history_writer = create_translation_history_writer
+        self.__delete_oldest_translation_histories_writer = (
+            delete_oldest_translation_histories_writer
+        )
 
     async def handle(
         self,
@@ -100,7 +107,12 @@ class TranslateService:
 
         translated_text = content[ai_translated_text_key]
 
-        self.__create_translation_history_reader.handle(
+        self.__delete_oldest_translation_histories_writer.handle(
+            owner_id=user.id,
+            keep_limit=60,
+        )
+
+        self.__create_translation_history_writer.handle(
             owner_id=user.id,
             source_language=source_language,
             target_language=target_language,
