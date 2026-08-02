@@ -51,7 +51,7 @@ battleship [Haruna](https://en.wikipedia.org/wiki/Japanese_battleship_Haruna).
 app/
 ├── core/          # Config, bootstrap, error handling, response wrapping
 ├── features/      # Domain logic organized by feature (auth, media, ...)
-│   ├── data/      # Readers (database operations via Supabase)
+│   ├── data/      # Readers (queries) and Writers (commands) via Supabase
 │   ├── entities/  # Domain models (dataclasses), enums
 │   ├── guards/    # Auth guards (Supabase bearer token)
 │   ├── requests/  # Request DTOs (Pydantic BaseModel)
@@ -94,7 +94,7 @@ app/
 
 ### Data Access (Readers)
 
-- Database operations are organized as **reader** classes in each feature's `data/` directory
+- **Readers** perform read-only queries against the database
 - Use instance methods with `handle()` that query via `SupabasePort`
 - Export the class and a `Dep` alias:
   ```python
@@ -106,6 +106,22 @@ app/
           ...
 
   FindByUserIdReaderDep = Annotated[FindByUserIdReader, Depends()]
+  ```
+
+### Data Access (Writers)
+
+- **Writers** perform mutations (insert, update, delete) against the database
+- Use instance methods with `handle()` that write via `SupabasePort`
+- Export the class and a `Dep` alias:
+  ```python
+  class CreateItemWriter:
+      def __init__(self, supabase: SupabasePortDep) -> None:
+          self.__supabase = supabase
+
+      def handle(self, ...) -> None:
+          ...
+
+  CreateItemWriterDep = Annotated[CreateItemWriter, Depends()]
   ```
 
 ### Guards
@@ -138,7 +154,7 @@ app/
 - Use **strong typing** everywhere. Annotate function signatures and class attributes
 - Avoid `Any` unless there is a clear and justified reason
 - Prefer **private methods** with double-underscore prefix (`__method`)
-- Keep services and readers lean. Extract reusable logic into shared utilities when justified
+- Keep services, readers, and writers lean. Extract reusable logic into shared utilities when justified
 - Keep code concise, readable, and easy to reason about
 - Avoid duplication; extract reusable pieces when justified
 - Do not over-abstract prematurely
@@ -194,7 +210,7 @@ A task is only considered complete when all of the following are true:
 
 - The implementation follows FastAPI and Python best practices
 - Services use the class + `handle()` pattern
-- Data access uses reader classes with `handle()` method
+- Data access uses reader classes for queries and writer classes for mutations, both with `handle()` method
 - New modules are properly exported via `__init__.py`
 - Code is strongly typed with no unjustified `Any`
 - Security implications have been considered
@@ -216,6 +232,7 @@ A task is only considered complete when all of the following are true:
 - Feature-based module organization
 - Services with `handle()` method
 - Readers with `handle()` method + `*Dep = Annotated[T, Depends()]`
+- Writers with `handle()` method + `*Dep = Annotated[T, Depends()]`
 - Guards as FastAPI dependency functions
 - Pydantic BaseModel for request DTOs
 - `@dataclass` for domain entities

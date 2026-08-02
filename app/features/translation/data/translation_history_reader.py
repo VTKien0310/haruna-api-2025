@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from app.ports import SupabasePortDep
+from app.ports.supabase import SupabasePortDep
 
 
 class TranslationHistoryReader:

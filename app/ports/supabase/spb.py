@@ -30,6 +30,9 @@ class SupabasePort:
     def table_media(self):
         return self.__client.table("medias")
 
+    def table_translation_history(self):
+        return self.__client.table("translation_histories")
+
     def auth(self):
         return self.__client.auth
 

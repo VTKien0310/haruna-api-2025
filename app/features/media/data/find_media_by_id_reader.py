@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import Depends
-from app.ports import SupabasePortDep
+from app.ports.supabase import SupabasePortDep
 from app.features.media.entities import Media
 
 
