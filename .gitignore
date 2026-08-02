@@ -1,5 +1,7 @@
 # IDE files
 .idea
+.ai
+.codex
 
 # Python-generated files
 __pycache__/

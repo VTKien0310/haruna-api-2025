@@ -1,4 +1,4 @@
-from typing import List
+from typing import Callable, List, AsyncContextManager
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
@@ -6,13 +6,17 @@ from .error import register_error_handlers
 from .response import apply_global_response_interface
 
 
-def bootstrap_application(router_registry: List[APIRouter]) -> FastAPI:
+def bootstrap_application(
+    router_registry: List[APIRouter],
+    lifespan_handler: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
+) -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         docs_url="/docs" if settings.APP_ENABLE_DOCS else None,
         redoc_url="/redoc" if settings.APP_ENABLE_DOCS else None,
         openapi_url="/openapi.json" if settings.APP_ENABLE_DOCS else None,
+        lifespan=lifespan_handler,
     )
 
     apply_global_response_interface(app)
