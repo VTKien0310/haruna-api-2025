@@ -18,13 +18,15 @@ async def translate(
     request: TranslateRequest,
     user: CurrentAuthenticatedUserDep,
     translate_service: Annotated[TranslateService, Depends()],
-) -> None:
-    await translate_service.handle(
+) -> dict:
+    translated_text = await translate_service.handle(
         user=user,
         source_text=request.source_text,
         source_language=request.source_language,
         target_language=request.target_language,
     )
+
+    return {"translated_text": translated_text}
 
 
 @router.get("/languages")

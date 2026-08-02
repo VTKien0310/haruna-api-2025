@@ -1,3 +1,4 @@
+import json
 from app.core import AppException, settings
 from app.features.auth.entities import User
 from app.features.translation.data import (
@@ -99,17 +100,24 @@ class TranslateService:
 
         content = ai_response["choices"][0]["message"]["content"]
 
-        if not isinstance(content, dict):
-            raise ValueError("AI response is not interpretable")
+        if not isinstance(content, str):
+            raise ValueError("AI response content must be a JSON string")
 
-        if ai_translated_text_key not in content:
-            raise ValueError("AI response is missing translated_text")
+        try:
+            parsed_content = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError("AI response content is not valid JSON") from exc
 
-        translated_text = content[ai_translated_text_key]
+        if not isinstance(parsed_content, dict):
+            raise ValueError("AI response content must be a JSON object")
+
+        translated_text = parsed_content.get(ai_translated_text_key)
+
+        if not isinstance(translated_text, str):
+            raise ValueError("AI response is missing a valid translated_text")
 
         self.__delete_oldest_translation_histories_writer.handle(
-            owner_id=user.id,
-            keep_limit=60,
+            owner_id=user.id, keep_limit=60
         )
 
         self.__create_translation_history_writer.handle(

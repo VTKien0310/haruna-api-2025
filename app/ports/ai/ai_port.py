@@ -23,7 +23,7 @@ class AiApiPort:
         request_body = self.__build_request_body(model, messages, response_format)
         headers = {"Authorization": f"Bearer {self.__api_key}"}
         response = await self.__http_client.post(
-            self.__endpoint, json=request_body, headers=headers
+            f"{self.__endpoint}/chat/completions", json=request_body, headers=headers
         )
         return response.json()
 
