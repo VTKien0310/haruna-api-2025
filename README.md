@@ -88,3 +88,15 @@ This project is ready to run on Fly.io using the included `Dockerfile` and `fly.
 - Build: `docker build -t haruna-api-2025 .`
 - Run: `docker run -p 8000:8000 haruna-api-2025`
 - The app will be available at: `http://localhost:8000/`
+
+## Conventions and standards
+
+- [Coding](./doc/conventions-and-standards/coding.md)
+- [RESTful API](./doc/conventions-and-standards/restful-api.md)
+- [Security](./doc/conventions-and-standards/security.md)
+- [Git](./doc/conventions-and-standards/git.md)
+
+## Design and decision documentation
+
+Documentation for design and decision reasoning is available in the [doc/design-and-decision](doc/design-and-decision)
+directory.

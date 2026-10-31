@@ -1,49 +1,14 @@
-# AGENTS.md
+# Haruna API development guide
 
-## About
+## General
 
-Haruna API 2025 is the back-end API for the HarunaDB project — a multipurpose application for everyday use that
-provides:
+Haruna API 2025 is the back-end API for HarunaDB, a multipurpose everyday app. The API owns server-side work.
 
-- Images and videos storage
-- Translation for English and Japanese
-- Web bookmarks management
+**Stack:** FastAPI, Supabase (auth and object storage), Pydantic + pydantic-settings, Pillow, Python 3.14, uv, Ruff,
+Fly.io (Docker).
 
-This API provides server-side functionality to support the project's needs, including media processing (thumbnail
-generation) and authentication via Supabase.
-
-The application's namesake is derived from the
-battleship [Haruna](https://en.wikipedia.org/wiki/Japanese_battleship_Haruna).
-
-### Tech Stack
-
-- **Backend framework:** FastAPI
-- **Auth & storage:** Supabase (authentication, object storage)
-- **Data validation:** Pydantic + pydantic-settings
-- **Image processing:** Pillow
-- **Python version:** 3.14
-- **Package manager:** uv
-- **Linter/Formatter:** Ruff
-- **Deployment:** Fly.io (Docker)
-
-## Core Principles
-
-- Prioritize **security, maintainability, and clarity** over cleverness
-- Follow **FastAPI best practices**
-- Follow **Python best practices**
-- Prefer **simple, readable, composable solutions**
-- Respect the separation of responsibilities between the HTTP layer, features, and external ports
-
-## Virtual Environment
-
-- **Always** activate the virtual environment before running any Python command:
-  ```bash
-  source .venv/bin/activate
-  ```
-- When finished running Python commands, deactivate:
-  ```bash
-  deactivate
-  ```
+Prioritize **security, maintainability, and clarity** over cleverness. Follow FastAPI and Python best practices. Prefer
+simple, readable, composable solutions, and keep the HTTP layer, features, and external ports separate.
 
 ## Architecture
 
@@ -62,135 +27,82 @@ app/
 └── main.py        # Entrypoint
 ```
 
-### Layers
+Routers in `http/` only parse requests, delegate to services, and return responses. Domain logic stays in `features/`.
 
-- **`http/`** — Thin routers. Parse requests, delegate to services, return responses. No business logic.
-- **`features/`** — All domain logic. Organized by feature. Each feature has `data/`, `entities/`, `guards/`,
-  `requests/`, `services/`.
-- **`ports/`** — Adapters for external services (Supabase client).
-- **`core/`** — Application-wide config (`pydantic-settings`), bootstrap wiring, error/response middleware.
+**Buckets:** layout and purpose of each storage bucket are in
+[doc/design-and-decision/storage-buckets.md](doc/design-and-decision/storage-buckets.md).
 
-### Supabase Buckets
+## Conventions
 
-- `medias` — Original media files (images/videos)
-- `thumbnails` — Video thumbnails
-- `resized` — Resized/generated thumbnails
+Python style and implementation patterns are in
+[doc/conventions-and-standards/coding.md](doc/conventions-and-standards/coding.md). Route rules are in
+[doc/conventions-and-standards/restful-api.md](doc/conventions-and-standards/restful-api.md).
 
-## Coding Standards
+Services, readers, and writers are classes with `handle()`. Inject dependencies in `__init__` and store them on `__`
+private attributes. Readers run read-only queries through `SupabasePort` and may return `Model | None`. Writers mutate
+(insert, update, delete) through `SupabasePort`. Export each class from its package `__init__.py` (services from
+`services/__init__.py`). Readers and writers also export a `Dep` alias:
 
-### Services
+```python
+class FindByUserIdReader:
+    def __init__(self, supabase: SupabasePortDep) -> None:
+        self.__supabase = supabase
 
-- Services are **classes** with a `handle()` method containing business logic
-- Inject dependencies via `__init__`, use private attributes with double-underscore prefix
-- Export the class from the feature's `services/__init__.py`:
-  ```python
-  class MyService:
-      def __init__(self, dependency: SomeDep):
-          self.__dependency = dependency
+    def handle(self, user_id: str) -> User | None:
+        ...
 
-      def handle(self, ...) -> ResultType:
-          ...
-  ```
 
-### Data Access (Readers)
+FindByUserIdReaderDep = Annotated[FindByUserIdReader, Depends()]
+```
 
-- **Readers** perform read-only queries against the database
-- Use instance methods with `handle()` that query via `SupabasePort`
-- Export the class and a `Dep` alias:
-  ```python
-  class FindByUserIdReader:
-      def __init__(self, supabase: SupabasePortDep) -> None:
-          self.__supabase = supabase
+Guards are FastAPI dependencies that return the authenticated user. Export aliases for routers:
 
-      def handle(self, user_id: str) -> User | None:
-          ...
+```python
+AuthenticatedGuardDep = Depends(_get_user_from_supabase_token)
+CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_token)]
+```
 
-  FindByUserIdReaderDep = Annotated[FindByUserIdReader, Depends()]
-  ```
+- Request bodies are Pydantic `BaseModel`s in the feature's `requests/`.
+- Domain models that do not map to a DB table are `@dataclass`es in `entities/`, with `@classmethod` factories (for
+  example `from_spb_data`) for Supabase rows.
+- Every `__init__.py` re-exports its public API (classes, `Dep` aliases). Import from the package `__init__.py`, not
+  deep module paths. Do not skip re-exports for new modules.
+- Organize by feature. Keep services, readers, and writers lean. Extract shared utilities when reuse is justified. Do
+  not over-abstract, duplicate logic, or over-engineer simple features. Add a dependency only with a clear reason.
+- Use strong typing on signatures and attributes. Avoid `Any` unless justified. Prefer `__` private methods.
+- Match existing style. Be explicit. Comment only when it adds real value. Leave no dead code, commented-out blocks, or
+  placeholders unless asked.
+- Domain errors use `AppException`. Standard HTTP errors use `HTTPException`. Success responses are wrapped
+  automatically by middleware as `{"ok": true, "content": ...}`.
 
-### Data Access (Writers)
+## Supabase vs API
 
-- **Writers** perform mutations (insert, update, delete) against the database
-- Use instance methods with `handle()` that write via `SupabasePort`
-- Export the class and a `Dep` alias:
-  ```python
-  class CreateItemWriter:
-      def __init__(self, supabase: SupabasePortDep) -> None:
-          self.__supabase = supabase
+The client calls Supabase or this API. Use Supabase when the client can do the work with the Supabase client. Use this
+API when the work must run on the server.
 
-      def handle(self, ...) -> None:
-          ...
+**Supabase:** sign-in and token verification, object storage (upload, download, signed URLs), and simple queries through
+the Supabase client.
 
-  CreateItemWriterDep = Annotated[CreateItemWriter, Depends()]
-  ```
+**API:** complex business logic, media processing (thumbnails and image manipulation), and any logic that must stay off
+the client. Client code is inspectable, so that logic does not belong there.
 
-### Guards
+## Security
 
-- Guards are **FastAPI dependency functions** that return authenticated user objects
-- Export `Depends(...)` aliases for use as router dependencies:
-  ```python
-  AuthenticatedGuardDep = Depends(_get_user_from_supabase_token)
-  CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_token)]
-  ```
+Follow the security requirements in
+[doc/conventions-and-standards/security.md](doc/conventions-and-standards/security.md). In particular:
 
-### Request DTOs
+- Never hardcode secrets, tokens, API keys, or service credentials, and never expose Supabase service credentials in
+  responses or logs.
+- Load configuration from environment variables via `pydantic-settings` in [`app/core/config.py`](app/core/config.py).
+  Do not hardcode a value when an environment variable exists.
+- Validate inputs with Pydantic. Respect Supabase bearer-token authentication and authorization.
+- Be cautious with file uploads, metadata, and downloads. Do not log or return sensitive user or file data, including in
+  error messages.
 
-- Use **Pydantic BaseModel** classes for request bodies
-- Place in the feature's `requests/` directory
+## Workflow
 
-### Entities
-
-- Use **`@dataclass`** for domain models that do not map to a DB table
-- Include `@classmethod` factory methods (e.g., `from_spb_data`) for Supabase data conversion
-- Place in the feature's `entities/` directory
-
-### Exports
-
-- Every `__init__.py` should re-export the public API of its module (classes, `Dep` aliases)
-- Keep imports clean by importing from package-level `__init__.py` rather than deep module paths
-
-### General
-
-- Use **strong typing** everywhere. Annotate function signatures and class attributes
-- Avoid `Any` unless there is a clear and justified reason
-- Prefer **private methods** with double-underscore prefix (`__method`)
-- Keep services, readers, and writers lean. Extract reusable logic into shared utilities when justified
-- Keep code concise, readable, and easy to reason about
-- Avoid duplication; extract reusable pieces when justified
-- Do not over-abstract prematurely
-- Match the existing codebase style and conventions when editing existing files
-- Prefer explicitness over hidden behavior
-- Add comments only when they provide real value
-- Do not leave dead code, commented-out blocks, or placeholder implementations unless explicitly requested
-
-## Supabase Usage
-
-Use **Supabase** for:
-
-- User authentication (sign-in, token verification)
-- Object storage (file upload, download, signed URLs)
-- Data storage (via Supabase client for simple queries)
-
-Use **API logic** for:
-
-- Complex business logic
-- Media processing (thumbnails, image manipulation)
-- Any logic that needs to be protected from client-side access
-
-## Security Requirements
-
-- **Never** hardcode secrets, tokens, API keys, or service credentials
-- **Never** expose Supabase service credentials in responses or logs
-- All configuration comes from environment variables via `pydantic-settings` (`app/core/config.py`)
-- Assume all client code is inspectable by end users
-- Validate inputs rigorously using Pydantic models
-- Be cautious with file uploads, metadata handling, and download flows
-- Respect authentication and authorization boundaries (Supabase bearer token)
-- Avoid logging sensitive user or file data
-
-## Code Quality
-
-After creating or editing code, always run:
+Activate the virtual environment before any Python command. After creating or editing code, format and lint, then
+deactivate. Fix lint issues you introduce. Do not ignore a lint error without a documented reason.
 
 ```bash
 source .venv/bin/activate
@@ -199,63 +111,12 @@ ruff check
 deactivate
 ```
 
-Rules:
+A task is done when it follows FastAPI and Python best practices and the patterns above, new modules are exported,
+typing has no unjustified `Any`, security has been considered, Ruff has been run, and important assumptions or tradeoffs
+are stated.
 
-- Fix any lint issues introduced by your changes
-- Do not ignore lint errors without a documented reason
+Make the smallest change that fully solves the problem. Do not change architecture broadly unless asked. Ask before
+proceeding when requirements conflict, security boundaries are unclear, a change could affect authentication or
+authorization, or the change is risky or irreversible. Suggest practical improvements over speculative refactors.
 
-## Definition of Done
-
-A task is only considered complete when all of the following are true:
-
-- The implementation follows FastAPI and Python best practices
-- Services use the class + `handle()` pattern
-- Data access uses reader classes for queries and writer classes for mutations, both with `handle()` method
-- New modules are properly exported via `__init__.py`
-- Code is strongly typed with no unjustified `Any`
-- Security implications have been considered
-- `ruff format` and `ruff check` have been run after the changes
-- Any important assumptions or tradeoffs are clearly communicated
-
-## Agent Behavior Expectations
-
-- Make the smallest reasonable change that fully solves the problem
-- Do not make broad architectural changes unless explicitly requested
-- Ask for clarification if:
-    - Requirements conflict
-    - Security boundaries are unclear
-    - A change could affect authentication or authorization rules
-- When suggesting improvements, prefer practical recommendations over speculative refactors
-
-## Preferred Implementation Patterns
-
-- Feature-based module organization
-- Services with `handle()` method
-- Readers with `handle()` method + `*Dep = Annotated[T, Depends()]`
-- Writers with `handle()` method + `*Dep = Annotated[T, Depends()]`
-- Guards as FastAPI dependency functions
-- Pydantic BaseModel for request DTOs
-- `@dataclass` for domain entities
-- Consistent error responses via `AppException`
-- Use the global response wrapper (`{"ok": true, "content": ...}`) — applied automatically via middleware
-
-## Avoid
-
-- Business logic in HTTP routers (routers should be thin)
-- Hardcoded configuration values when environment variables are available
-- Unstructured error responses (use `AppException` for domain errors, `HTTPException` for standard HTTP errors)
-- Leaking sensitive data into logs, responses, or error messages
-- Overengineering simple features
-- Introducing dependencies without clear justification
-- Skipping `__init__.py` re-exports for new modules
-
-## If Unsure
-
-If implementation details are unclear, prefer:
-
-1. security
-2. simplicity
-3. maintainability
-4. consistency with the existing codebase
-
-When in doubt, ask for clarification before making risky or irreversible changes.
+If details are unclear, prefer, in order: security, simplicity, maintainability, consistency with the existing codebase.
