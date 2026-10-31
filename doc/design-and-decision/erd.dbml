@@ -1,0 +1,198 @@
+// Haruna DB schema snapshot, inspected on 2026-10-30.
+// Source: read-only PostgreSQL catalog queries on local Supabase (localhost:54322/postgres).
+// Scope: all public tables and the referenced auth.users primary key only.
+// Supabase internals, row data, RLS policies, functions, and triggers are omitted.
+
+Project haruna_db {
+  database_type: 'PostgreSQL'
+  Note: 'Application schema from the local Supabase instance. auth.users is an external reference stub.'
+}
+
+Table auth.users {
+  id uuid [pk, not null]
+
+  Note: 'External Supabase Auth table. Only the referenced primary key is shown.'
+}
+
+Table public.check_in_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  time "time without time zone" [not null]
+
+  indexes {
+    id [pk, name: 'check_in_entries_pkey', type: btree]
+  }
+}
+
+Table public.leave_work_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  start "time without time zone" [not null]
+  end "time without time zone" [not null]
+
+  indexes {
+    id [pk, name: 'leave_work_entries_pkey', type: btree]
+  }
+}
+
+Table public.medias {
+  id uuid [not null, default: `gen_random_uuid()`]
+  uploader_id uuid [null]
+  name text [not null]
+  mime "character varying" [not null]
+  size bigint [not null]
+  type smallint [not null]
+  storage_path text [not null]
+  created_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+  updated_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+  thumbnail_path text [null]
+
+  indexes {
+    id [pk, name: 'medias_pkey', type: btree]
+  }
+}
+
+Table public.profiles {
+  id uuid [not null, default: `gen_random_uuid()`]
+  user_id uuid [null]
+  name "character varying" [null]
+  birth_date date [not null, default: `now()`]
+  work_start_date date [not null, default: `now()`]
+  created_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+  updated_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+
+  indexes {
+    id [pk, name: 'profiles_pkey', type: btree]
+    user_id [unique, name: 'profiles_user_id_key', type: btree]
+  }
+}
+
+Table public.pto_affect_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  entry_id uuid [null]
+  entry_type "character varying" [null]
+  no_deduction smallint [not null, default: `0`]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    id [pk, name: 'pto_affect_entries_pkey', type: btree]
+    (entry_id, entry_type) [name: 'pto_affect_entries_entry_id_entry_type_idx', type: btree]
+  }
+}
+
+Table public.pto_banks {
+  id uuid [not null, default: `gen_random_uuid()`]
+  owner_id uuid [not null, default: `auth.uid()`]
+  annual_balance integer [not null, default: `0`]
+  extended_balance integer [not null, default: `0`]
+  seniority_balance integer [not null, default: `0`]
+  year integer [not null]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    id [pk, name: 'pto_banks_pkey', type: btree]
+    (owner_id, year) [unique, name: 'pto_banks_owner_id_year_key', type: btree]
+  }
+}
+
+Table public.pto_transactions {
+  id uuid [not null, default: `gen_random_uuid()`]
+  pto_bank_id uuid [not null]
+  entry_id uuid [not null]
+  cause "character varying" [not null]
+  value integer [not null]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    id [pk, name: 'pto_transactions_pkey', type: btree]
+    entry_id [name: 'pto_transactions_entry_id_idx', type: btree]
+    pto_bank_id [name: 'pto_transactions_pto_bank_id_idx', type: btree]
+  }
+}
+
+Table public.remote_work_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  type smallint [not null]
+
+  indexes {
+    id [pk, name: 'remote_work_entries_pkey', type: btree]
+  }
+}
+
+Table public.time_off_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  type smallint [not null]
+
+  indexes {
+    id [pk, name: 'time_off_entries_pkey', type: btree]
+  }
+}
+
+Table public.translation_histories {
+  id uuid [not null, default: `gen_random_uuid()`]
+  owner_id uuid [not null, default: `auth.uid()`]
+  source_language text [not null]
+  target_language text [not null]
+  source_text text [not null]
+  translation text [not null]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    id [pk, name: 'translation_histories_pkey', type: btree]
+  }
+}
+
+Table public.webpage_bookmarks {
+  id uuid [not null, default: `gen_random_uuid()`]
+  owner_id uuid [null, default: `auth.uid()`]
+  url text [not null]
+  name text [not null]
+  description text [not null]
+  created_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+  updated_at "timestamp with time zone" [not null, default: `(now() AT TIME ZONE 'utc'::text)`]
+  root_id uuid [null]
+  parent_id uuid [null]
+  level smallint [not null]
+  type smallint [not null]
+
+  indexes {
+    id [pk, name: 'webpage_bookmarks_pkey', type: btree]
+  }
+}
+
+Table public.work_time_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  type smallint [not null]
+
+  indexes {
+    id [pk, name: 'work_time_entries_pkey', type: btree]
+  }
+}
+
+Table public.workday_exceptions {
+  id uuid [not null, default: `gen_random_uuid()`]
+  type smallint [not null]
+  date date [not null]
+  time smallint [not null]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    id [pk, name: 'workday_exceptions_pkey', type: btree]
+  }
+}
+
+Ref medias_uploader_id_fkey: public.medias.uploader_id > auth.users.id [update: no action, delete: set null]
+Ref profiles_user_id_fkey: auth.users.id - public.profiles.user_id [update: no action, delete: set null]
+Ref translation_histories_owner_id_fkey: public.translation_histories.owner_id > auth.users.id [update: cascade, delete: cascade]
+Ref webpage_bookmarks_owner_id_fkey: public.webpage_bookmarks.owner_id > auth.users.id [update: cascade, delete: set null]
+Ref webpage_bookmarks_parent_id_fkey: public.webpage_bookmarks.parent_id > public.webpage_bookmarks.id [update: cascade, delete: cascade]
+Ref webpage_bookmarks_root_id_fkey: public.webpage_bookmarks.root_id > public.webpage_bookmarks.id [update: cascade, delete: cascade]
+Ref pto_banks_owner_id_fkey: public.pto_banks.owner_id > auth.users.id [update: cascade, delete: cascade]
+Ref pto_transactions_pto_bank_id_fkey: public.pto_transactions.pto_bank_id > public.pto_banks.id [update: cascade, delete: cascade]
+Ref pto_transactions_entry_id_fkey: public.pto_transactions.entry_id > public.pto_affect_entries.id [update: cascade, delete: cascade]
