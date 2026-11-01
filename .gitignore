@@ -16,3 +16,8 @@ wheels/
 
 # .env files
 .env
+
+# Tests
+.pytest_cache/
+coverage/
+*.sqlite
