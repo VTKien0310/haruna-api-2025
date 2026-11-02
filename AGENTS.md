@@ -36,7 +36,8 @@ Routers in `http/` only parse requests, delegate to services, and return respons
 
 Python style and implementation patterns are in
 [doc/conventions-and-standards/coding.md](doc/conventions-and-standards/coding.md). Route rules are in
-[doc/conventions-and-standards/restful-api.md](doc/conventions-and-standards/restful-api.md).
+[doc/conventions-and-standards/restful-api.md](doc/conventions-and-standards/restful-api.md). Application tests are in
+[doc/conventions-and-standards/application-tests.md](doc/conventions-and-standards/application-tests.md).
 
 Services, readers, and writers are classes with `handle()`. Inject dependencies in `__init__` and store them on `__`
 private attributes. Readers run read-only queries through `SupabasePort` and may return `Model | None`. Writers mutate
@@ -109,6 +110,13 @@ source .venv/bin/activate
 ruff format
 ruff check
 deactivate
+```
+
+After behavior changes, run the application tests. Commands and rules are in
+[doc/conventions-and-standards/application-tests.md](doc/conventions-and-standards/application-tests.md).
+
+```bash
+uv run pytest
 ```
 
 A task is done when it follows FastAPI and Python best practices and the patterns above, new modules are exported,

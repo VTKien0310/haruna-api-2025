@@ -60,6 +60,18 @@ uvicorn app.main:app --reload
 ruff format
 ```
 
+## Application tests
+
+Tests run in memory. They do not read `.env`, call Supabase, call the AI service, or open a network connection. Table rows live in a fresh SQLite database for each test. Rules are in [Application tests](doc/conventions-and-standards/application-tests.md).
+
+```shell
+uv run pytest
+uv run pytest tests/features/media
+uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report=lcov
+```
+
+Coverage is written to `coverage/` and is not a merge gate.
+
 ## Deploying to Fly.io
 
 This project is ready to run on Fly.io using the included `Dockerfile` and `fly.toml`.
@@ -95,6 +107,7 @@ This project is ready to run on Fly.io using the included `Dockerfile` and `fly.
 - [RESTful API](./doc/conventions-and-standards/restful-api.md)
 - [Security](./doc/conventions-and-standards/security.md)
 - [Git](./doc/conventions-and-standards/git.md)
+- [Application tests](./doc/conventions-and-standards/application-tests.md)
 
 ## Design and decision documentation
 

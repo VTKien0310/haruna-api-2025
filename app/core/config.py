@@ -1,10 +1,21 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 from typing import List
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _env_file() -> str | None:
+    if os.environ.get("ENVIRONMENT") == "testing":
+        return None
+    return ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+        env_file=_env_file(),
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
 
     ENVIRONMENT: str = "development"
