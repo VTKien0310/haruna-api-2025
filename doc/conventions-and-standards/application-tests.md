@@ -21,7 +21,7 @@ Tests mirror the application under `tests/features/`, `tests/http/`, `tests/port
 - Build rows with the `insert_*` helpers. Pass keyword overrides for any column that matters to the assertion.
 - Register a bearer token with `supabase.auth().register(token)` before a protected request. `reject(token)` configures an unknown user. A token that was neither registered nor rejected fails the test.
 - Upload storage bytes with `supabase.storage_media()`, `storage_resized()`, or `storage_thumbnails()` before the code downloads them. Queue an AI payload with `ai.queue_chat_completion(...)` before the code calls the model.
-- The table double supports the query chain the application uses today: `select`, `eq`, `order` (ascending by default), `in_`, `insert`, `delete`, `single`, and `execute().data`. `single()` yields `data=None` when no row matches.
+- The table double supports the query chain the application uses today: `select`, `eq`, `order` (ascending by default), `in_`, `insert`, `update`, `delete`, `single`, and `execute().data`. `single()` yields `data=None` when no row matches.
 
 ## Database
 
