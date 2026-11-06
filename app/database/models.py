@@ -1,7 +1,14 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time as dt_time, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, DateTime, MetaData, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    DateTime,
+    MetaData,
+    SmallInteger,
+    Time,
+    UniqueConstraint,
+)
 from sqlmodel import Field, SQLModel
 
 from app.core.config import settings
@@ -49,6 +56,37 @@ class PtoBankRecord(SQLModel, table=True):
     extended_balance: int
     seniority_balance: int
     year: int
+    created_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class CheckInEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "check_in_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    time: dt_time = Field(sa_column=Column(Time, nullable=False))
+
+
+class PtoAffectEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "pto_affect_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    owner_id: UUID
+    entry_id: UUID | None = Field(default=None)
+    entry_type: str | None = Field(default=None)
+    no_deduction: int = Field(
+        default=0,
+        sa_column=Column(SmallInteger, nullable=False, server_default="0"),
+    )
     created_at: datetime = Field(
         default_factory=_utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
