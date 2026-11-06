@@ -8,15 +8,18 @@
       reveal whether the token was missing, expired, or malformed
 - **Authorization and data access**
     - Must authorize every read and write in application code. Authentication alone is not sufficient.
-      `SUPABASE_SERVICE_ROLE_KEY` bypasses Row Level Security, so scope each query to the authenticated user, and
-      keep the service-role key on the server. _Ex: `DeleteOldestTranslationHistoriesWriter` filters by `owner_id`_
+      `SUPABASE_SERVICE_ROLE_KEY` and privileged direct PostgreSQL roles can bypass Row Level Security, so scope each
+      query to the authenticated user and keep the service-role key and database credentials on the server.
+      _Ex: `DeleteOldestTranslationHistoriesWriter` filters by `owner_id`; direct PTO queries filter by the
+      authenticated owner id_
     - Must not trust a client-supplied user id, ownership field, or object path as proof of permission
     - See the [Supabase RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security). Database
-      policies complement these checks. They do not replace them while the service role is in use
+      policies complement these checks. They do not replace them while the service role or a privileged direct database
+      role is in use
 - **Query injection**
-    - Must use the Supabase query builder (`.eq()`, `.insert()`, `.in_()`, and related methods) or parameter binding
-      for every query (Eloquent parameter binding). Never concatenate or interpolate raw user input into filter
-      expressions or raw query strings
+    - Must use the Supabase query builder (`.eq()`, `.insert()`, `.in_()`, and related methods), SQLModel/SQLAlchemy
+      expressions with bound values, or parameter binding for every query. Never concatenate or interpolate raw user
+      input into filter expressions or raw query strings
     - Should validate and cast user input types before using them in a query
     - Must validate request bodies with Pydantic, then check domain rules again in the service. _Ex: `TranslateService`
       accepts only supported language codes, and source and target must differ_
@@ -48,8 +51,8 @@
     - Must load configuration from environment variables through `Settings` in `app/core/config.py`. Never hardcode
       secrets, tokens, or service credentials
     - Must not commit `.env` or any file that contains credentials. `.env.example` lists names only
-    - Must keep `SUPABASE_SERVICE_ROLE_KEY` (see Authorization), `AI_API_KEY`, and `AI_API_ENDPOINT` in server-side
-      configuration. Production overrides are set with Fly secrets
+    - Must keep `SUPABASE_SERVICE_ROLE_KEY` (see Authorization), `DB_PASSWORD`, `AI_API_KEY`, and `AI_API_ENDPOINT` in
+      server-side configuration. Production overrides are set with Fly secrets
     - See the [Supabase API key guide](https://supabase.com/docs/guides/getting-started/api-keys)
 - **Logging and error messages**
     - Must never log passwords, access tokens, authorization headers, service keys, or other application secrets.

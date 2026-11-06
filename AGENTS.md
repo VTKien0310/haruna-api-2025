@@ -4,8 +4,8 @@
 
 Haruna API 2025 is the back-end API for HarunaDB, a multipurpose everyday app. The API owns server-side work.
 
-**Stack:** FastAPI, Supabase (auth and object storage), Pydantic + pydantic-settings, Pillow, Python 3.14, uv, Ruff,
-Fly.io (Docker).
+**Stack:** FastAPI, Supabase (auth, object storage, and simple queries), PostgreSQL via SQLModel + SQLAlchemy asyncpg,
+Pydantic + pydantic-settings, Pillow, Python 3.14, uv, Ruff, Fly.io (Docker).
 
 Prioritize **security, maintainability, and clarity** over cleverness. Follow FastAPI and Python best practices. Prefer
 simple, readable, composable solutions, and keep the HTTP layer, features, and external ports separate.
@@ -15,8 +15,9 @@ simple, readable, composable solutions, and keep the HTTP layer, features, and e
 ```
 app/
 ├── core/          # Config, bootstrap, error handling, response wrapping
+├── database/      # SQLModel table models, async sessions, and transactions (no migrations)
 ├── features/      # Domain logic organized by feature (auth, media, ...)
-│   ├── data/      # Readers (queries) and Writers (commands) via Supabase
+│   ├── data/      # Readers (queries) and Writers (commands) via Supabase or SQLModel
 │   ├── entities/  # Domain models (dataclasses), enums
 │   ├── guards/    # Auth guards (Supabase bearer token)
 │   ├── requests/  # Request DTOs (Pydantic BaseModel)
@@ -40,8 +41,9 @@ Python style and implementation patterns are in
 [doc/conventions-and-standards/application-tests.md](doc/conventions-and-standards/application-tests.md).
 
 Services, readers, and writers are classes with `handle()`. Inject dependencies in `__init__` and store them on `__`
-private attributes. Readers run read-only queries through `SupabasePort` and may return `Model | None`. Writers mutate
-(insert, update, delete) through `SupabasePort`. Export each class from its package `__init__.py` (services from
+private attributes. Supabase-backed readers and writers inject `SupabasePort`; direct-database readers and writers
+instead receive the current `AsyncSession` through `handle()`. Readers are read-only and may return `Model | None`;
+writers insert, update, or delete. Export each class from its package `__init__.py` (services from
 `services/__init__.py`). Readers and writers also export a `Dep` alias:
 
 ```python
@@ -55,6 +57,11 @@ class FindByUserIdReader:
 
 FindByUserIdReaderDep = Annotated[FindByUserIdReader, Depends()]
 ```
+
+Transactional services inject `DbSessionManagerDep` and pass one session to all participating readers and writers. Use
+`.session()` for reads and `.transaction()` for atomic work. Writers `flush()` but do not `commit()`; the service owns
+the transaction. SQLModel table models live in `app/database/models.py`. There are no migrations and no production
+`create_all()` call.
 
 Guards are FastAPI dependencies that return the authenticated user. Export aliases for routers:
 
@@ -87,13 +94,18 @@ the Supabase client.
 **API:** complex business logic, media processing (thumbnails and image manipulation), and any logic that must stay off
 the client. Client code is inspectable, so that logic does not belong there.
 
+**Direct PostgreSQL:** relational queries and operations that need SQLModel transaction guarantees. A transaction
+covers only work sharing its `AsyncSession`; separate Supabase API and object-storage effects are not rolled back.
+Application-level authentication, ownership filters, and authorization remain mandatory because the database role may
+bypass RLS.
+
 ## Security
 
 Follow the security requirements in
 [doc/conventions-and-standards/security.md](doc/conventions-and-standards/security.md). In particular:
 
-- Never hardcode secrets, tokens, API keys, or service credentials, and never expose Supabase service credentials in
-  responses or logs.
+- Never hardcode secrets, tokens, API keys, database passwords, or service credentials, and never expose Supabase or
+  database service credentials in responses or logs.
 - Load configuration from environment variables via `pydantic-settings` in [`app/core/config.py`](app/core/config.py).
   Do not hardcode a value when an environment variable exists.
 - Validate inputs with Pydantic. Respect Supabase bearer-token authentication and authorization.

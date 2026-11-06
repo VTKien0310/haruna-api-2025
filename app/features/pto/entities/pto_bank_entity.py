@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.database import PtoBankRecord
+
 
 @dataclass
 class PtoBank:
@@ -12,6 +14,19 @@ class PtoBank:
     year: int
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def from_db_record(cls, record: PtoBankRecord) -> PtoBank:
+        return cls(
+            id=str(record.id),
+            owner_id=str(record.owner_id),
+            annual_balance=record.annual_balance,
+            extended_balance=record.extended_balance,
+            seniority_balance=record.seniority_balance,
+            year=record.year,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
 
     @classmethod
     def from_spb_data(cls, data: dict[str, str | int]) -> PtoBank:

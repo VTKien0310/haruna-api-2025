@@ -1,29 +1,23 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.database import ProfileRecord
 from app.features.profile.entities import Profile
-from app.ports.supabase import SupabasePortDep
 
 
 class FindProfileByUserIdReader:
-    def __init__(self, supabase: SupabasePortDep) -> None:
-        self.__supabase = supabase
-
-    def handle(self, user_id: str) -> Profile | None:
-        result = (
-            self.__supabase.table_profile()
-            .select()
-            .eq("user_id", user_id)
-            .single()
-            .execute()
-            .data
+    async def handle(self, db_session: AsyncSession, user_id: str) -> Profile | None:
+        statement = (
+            select(ProfileRecord).where(ProfileRecord.user_id == UUID(user_id)).limit(1)
         )
+        result = await db_session.exec(statement)
+        record = result.first()
 
-        if result is None:
-            return None
-
-        return Profile.from_spb_data(result)
+        return Profile.from_db_record(record) if record is not None else None
 
 
 FindProfileByUserIdReaderDep = Annotated[FindProfileByUserIdReader, Depends()]

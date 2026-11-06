@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from app.database import ProfileRecord
+
 
 @dataclass
 class Profile:
@@ -11,6 +13,18 @@ class Profile:
     work_start_date: date
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def from_db_record(cls, record: ProfileRecord) -> Profile:
+        return cls(
+            id=str(record.id),
+            user_id=str(record.user_id) if record.user_id else None,
+            name=record.name,
+            birth_date=record.birth_date,
+            work_start_date=record.work_start_date,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
 
     @classmethod
     def from_spb_data(cls, data: dict[str, str | int]) -> Profile:

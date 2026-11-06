@@ -31,6 +31,13 @@ class Settings(BaseSettings):
         "http://localhost:8000",
     ]
 
+    DB_HOST: str = ""
+    DB_PORT: int = 5432
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+    DB_NAME: str = ""
+    DB_SCHEMA: str = "public"
+
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 

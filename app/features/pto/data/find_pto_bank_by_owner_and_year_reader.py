@@ -1,30 +1,31 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.database import PtoBankRecord
 from app.features.pto.entities import PtoBank
-from app.ports.supabase import SupabasePortDep
 
 
 class FindPtoBankByOwnerAndYearReader:
-    def __init__(self, supabase: SupabasePortDep) -> None:
-        self.__supabase = supabase
-
-    def handle(self, owner_id: str, year: int) -> PtoBank | None:
-        result = (
-            self.__supabase.table_pto_bank()
-            .select()
-            .eq("owner_id", owner_id)
-            .eq("year", year)
-            .single()
-            .execute()
-            .data
+    async def handle(
+        self,
+        db_session: AsyncSession,
+        owner_id: str,
+        year: int,
+    ) -> PtoBank | None:
+        statement = (
+            select(PtoBankRecord)
+            .where(PtoBankRecord.owner_id == UUID(owner_id))
+            .where(PtoBankRecord.year == year)
+            .limit(1)
         )
+        result = await db_session.exec(statement)
+        record = result.first()
 
-        if result is None:
-            return None
-
-        return PtoBank.from_spb_data(result)
+        return PtoBank.from_db_record(record) if record is not None else None
 
 
 FindPtoBankByOwnerAndYearReaderDep = Annotated[

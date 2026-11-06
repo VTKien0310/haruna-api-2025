@@ -40,4 +40,4 @@ async def put_pto_bank(
     user: CurrentAuthenticatedUserDep,
     get_or_create_service: GetOrCreatePtoBankServiceDep,
 ) -> PtoBank:
-    return get_or_create_service.handle(user.id, year)
+    return await get_or_create_service.handle(user.id, year)
