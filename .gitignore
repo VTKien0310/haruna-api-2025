@@ -2,6 +2,7 @@
 .idea
 .ai
 .codex
+.junie
 
 # Python-generated files
 __pycache__/
