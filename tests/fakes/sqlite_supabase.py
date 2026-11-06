@@ -147,6 +147,11 @@ class Query:
         self._rows = row if isinstance(row, list) else [row]
         return self
 
+    def update(self, row: dict[str, object]) -> "Query":
+        self._operation = "update"
+        self._rows = [row]
+        return self
+
     def delete(self) -> "Query":
         self._operation = "delete"
         return self
@@ -158,6 +163,8 @@ class Query:
     def execute(self) -> QueryResult:
         if self._operation == "insert":
             return self._execute_insert()
+        if self._operation == "update":
+            return self._execute_update()
         if self._operation == "delete":
             return self._execute_delete()
         return self._execute_select()
@@ -208,6 +215,17 @@ class Query:
         self._connection.commit()
         return QueryResult(inserted)
 
+    def _execute_update(self) -> QueryResult:
+        row = self._rows[0]
+        where_sql, params = self._where()
+        set_sql = ", ".join(f"{quote_identifier(column)} = ?" for column in row.keys())
+        self._connection.execute(
+            f"UPDATE {quote_identifier(self._table)} SET {set_sql}{where_sql}",
+            (*row.values(), *params),
+        )
+        self._connection.commit()
+        return QueryResult([])
+
     def _execute_delete(self) -> QueryResult:
         where_sql, params = self._where()
         self._connection.execute(
@@ -246,6 +264,12 @@ class SqliteSupabasePort:
 
     def table_translation_history(self) -> Query:
         return Query(self._connection, "translation_histories")
+
+    def table_profile(self) -> Query:
+        return Query(self._connection, "profiles")
+
+    def table_pto_bank(self) -> Query:
+        return Query(self._connection, "pto_banks")
 
     def storage_media(self) -> StorageBucket:
         return self._storage["medias"]

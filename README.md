@@ -12,6 +12,7 @@ battleship [Haruna](https://en.wikipedia.org/wiki/Japanese_battleship_Haruna).
 
 - FastAPI
 - Supabase
+- PostgreSQL via SQLModel, SQLAlchemy, and asyncpg
 
 ## System requirement
 
@@ -43,6 +44,14 @@ cp .env.example .env
 
 - Edit `.env` and fill in your configuration values
 
+For direct PostgreSQL access, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SCHEMA`.
+The asynchronous connection settings support Supabase's connection pooler as well as a direct database host. Keep the
+password in server-side environment configuration and use a least-privilege database role where practical. Supabase
+authentication, object storage, and simple table queries continue to use the Supabase client.
+
+SQLModel table models describe the existing schema. This application does not manage migrations or create hosted
+tables at startup.
+
 ### Running the Development Server
 
 ```shell
@@ -62,7 +71,7 @@ ruff format
 
 ## Application tests
 
-Tests run in memory. They do not read `.env`, call Supabase, call the AI service, or open a network connection. Table rows live in a fresh SQLite database for each test. Rules are in [Application tests](doc/conventions-and-standards/application-tests.md).
+Tests run in memory. They do not read `.env`, call Supabase, call the AI service, connect to PostgreSQL, or open a network connection. Supabase table rows and direct SQLModel records use fresh in-memory SQLite databases. Rules are in [Application tests](doc/conventions-and-standards/application-tests.md).
 
 ```shell
 uv run pytest

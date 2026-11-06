@@ -16,6 +16,11 @@ def test_settings_do_not_load_an_environment_file() -> None:
     assert settings.SUPABASE_SERVICE_ROLE_KEY == "dummy-test-key"
     assert settings.AI_API_ENDPOINT == "http://ai.invalid"
     assert settings.AI_API_KEY == "dummy-test-key"
+    assert settings.DB_HOST == "database.invalid"
+    assert settings.DB_USER == "dummy-test-user"
+    assert settings.DB_PASSWORD == "dummy-test-password"
+    assert settings.DB_NAME == "dummy-test-database"
+    assert settings.DB_SCHEMA == ""
 
 
 def test_network_guard_blocks_outbound_sockets() -> None:

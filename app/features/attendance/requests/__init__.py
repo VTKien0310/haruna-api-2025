@@ -1,0 +1,1 @@
+from .create_check_in_request import CreateCheckInRequest as CreateCheckInRequest

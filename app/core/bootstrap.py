@@ -3,6 +3,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .error import register_error_handlers
+from .openapi import apply_openapi_schema
 from .response import apply_global_response_interface
 
 
@@ -24,6 +25,7 @@ def bootstrap_application(
 
     _config_cors(app)
     _load_routes(app, router_registry)
+    apply_openapi_schema(app)
 
     return app
 

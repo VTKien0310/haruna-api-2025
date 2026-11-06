@@ -28,9 +28,19 @@
     - `app/features/` — domain logic, one package per feature (`auth`, `media`, `translation`), using `data/`,
       `entities/`, `guards/`, `requests/`, and `services/` as needed
     - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`)
+    - `app/database/` — SQLModel table models and asynchronous PostgreSQL session and transaction management
     - `app/core/` — settings, bootstrap, `AppException`, response wrapping, and shared HTTP clients
 - Must implement services, readers, and writers as classes with `handle()`. Inject dependencies in `__init__` and
   export a `*Dep = Annotated[T, Depends()]` alias. _Ex: `FindMediaByIdReader`_
+- Direct-database services inject `DbSessionManagerDep`. Use `.session()` for reads and `.transaction()` for atomic
+  work. Pass the same `AsyncSession` to every reader and writer participating in the operation; do not nest independent
+  sessions. The transaction commits on successful exit and rolls back on exception
+- Direct-database writers use `flush()` and do not call `commit()`. Transaction ownership belongs to the service.
+  Supabase writes and object-storage side effects are separate operations and are not rolled back by a database
+  transaction
+- SQLModel `table=True` models live in `app/database/models.py` and describe the existing schema. Do not add Alembic or
+  run `create_all()` outside isolated tests. Keep feature dataclasses as domain/API entities and map database records to
+  them in the data layer
 - Must implement guards as private FastAPI dependencies. Export `AuthenticatedGuardDep` and
   `CurrentAuthenticatedUserDep`. Protected routers set `dependencies=[AuthenticatedGuardDep]`
 - Must use Pydantic `BaseModel` request DTOs with `Field` constraints. _Ex: `CreateThumbnailRequest`,

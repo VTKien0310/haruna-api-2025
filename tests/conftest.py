@@ -8,12 +8,27 @@ os.environ["SUPABASE_URL"] = "http://supabase.invalid"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "dummy-test-key"
 os.environ["AI_API_ENDPOINT"] = "http://ai.invalid"
 os.environ["AI_API_KEY"] = "dummy-test-key"
+os.environ["DB_HOST"] = "database.invalid"
+os.environ["DB_PORT"] = "5432"
+os.environ["DB_USER"] = "dummy-test-user"
+os.environ["DB_PASSWORD"] = "dummy-test-password"
+os.environ["DB_NAME"] = "dummy-test-database"
+os.environ["DB_SCHEMA"] = ""
+
+from collections.abc import AsyncGenerator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app import create_app
 from app.core.config import settings
+from app.database import (
+    DbSessionManager,
+    get_db_session_manager,
+    model_common_metadata,
+)
 from app.ports.ai.ai_port import get_ai_port
 from app.ports.supabase.spb import SupabasePort, _get_supabase_client
 from tests.fakes.ai import AiApiFake
@@ -36,6 +51,11 @@ if (
     or settings.AI_API_KEY != "dummy-test-key"
 ):
     raise RuntimeError("Tests must not use a real AI credential")
+if (
+    settings.DB_HOST != "database.invalid"
+    or settings.DB_PASSWORD != "dummy-test-password"
+):
+    raise RuntimeError("Tests must not use real database credentials")
 
 
 def _blocked_create_client(*args: object, **kwargs: object) -> None:
@@ -70,6 +90,22 @@ def supabase(database) -> SqliteSupabasePort:
 
 
 @pytest.fixture
+async def db_session_manager() -> AsyncGenerator[DbSessionManager, None]:
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as connection:
+        await connection.run_sync(model_common_metadata.create_all)
+
+    manager = DbSessionManager(engine)
+    try:
+        yield manager
+    finally:
+        await manager.dispose()
+
+
+@pytest.fixture
 def ai() -> AiApiFake:
     return AiApiFake()
 
@@ -79,5 +115,19 @@ def client(supabase: SqliteSupabasePort, ai: AiApiFake):
     app = create_app()
     app.dependency_overrides[SupabasePort] = lambda: supabase
     app.dependency_overrides[get_ai_port] = lambda: ai
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+async def db_client(
+    supabase: SqliteSupabasePort,
+    ai: AiApiFake,
+    db_session_manager: DbSessionManager,
+) -> AsyncGenerator[TestClient, None]:
+    app = create_app()
+    app.dependency_overrides[SupabasePort] = lambda: supabase
+    app.dependency_overrides[get_ai_port] = lambda: ai
+    app.dependency_overrides[get_db_session_manager] = lambda: db_session_manager
     with TestClient(app) as test_client:
         yield test_client

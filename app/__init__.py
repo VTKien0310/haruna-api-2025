@@ -6,6 +6,7 @@ from .core import (
     init_basic_http_client,
     init_long_read_http_client,
 )
+from .database import init_db_session_manager
 from .http import router_registry
 
 
@@ -13,11 +14,14 @@ from .http import router_registry
 async def lifespan_handler(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.basic_http_client = init_basic_http_client()
     app.state.long_read_http_client = init_long_read_http_client()
+    app.state.db_session_manager = init_db_session_manager()
 
-    yield
-
-    await app.state.basic_http_client.aclose()
-    await app.state.long_read_http_client.aclose()
+    try:
+        yield
+    finally:
+        await app.state.db_session_manager.dispose()
+        await app.state.basic_http_client.aclose()
+        await app.state.long_read_http_client.aclose()
 
 
 def create_app() -> FastAPI:

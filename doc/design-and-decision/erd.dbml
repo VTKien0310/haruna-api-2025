@@ -1,4 +1,4 @@
-// Haruna DB schema snapshot, inspected on 2026-10-30.
+// Haruna DB schema snapshot, inspected on 2026-10-30 and updated from subsequent migrations.
 // Source: read-only PostgreSQL catalog queries on local Supabase (localhost:54322/postgres).
 // Scope: all public tables and the referenced auth.users primary key only.
 // Supabase internals, row data, RLS policies, functions, and triggers are omitted.
@@ -68,6 +68,7 @@ Table public.profiles {
 }
 
 Table public.pto_affect_entries {
+  owner_id uuid [not null, default: `auth.uid()`]
   id uuid [not null, default: `gen_random_uuid()`]
   entry_id uuid [null]
   entry_type "character varying" [null]
@@ -78,6 +79,7 @@ Table public.pto_affect_entries {
   indexes {
     id [pk, name: 'pto_affect_entries_pkey', type: btree]
     (entry_id, entry_type) [name: 'pto_affect_entries_entry_id_entry_type_idx', type: btree]
+    owner_id [name: 'pto_affect_entries_owner_id_idx', type: btree]
   }
 }
 
@@ -196,3 +198,5 @@ Ref webpage_bookmarks_root_id_fkey: public.webpage_bookmarks.root_id > public.we
 Ref pto_banks_owner_id_fkey: public.pto_banks.owner_id > auth.users.id [update: cascade, delete: cascade]
 Ref pto_transactions_pto_bank_id_fkey: public.pto_transactions.pto_bank_id > public.pto_banks.id [update: cascade, delete: cascade]
 Ref pto_transactions_entry_id_fkey: public.pto_transactions.entry_id > public.pto_affect_entries.id [update: cascade, delete: cascade]
+
+Ref pto_affect_entries_owner_id_fkey: public.pto_affect_entries.owner_id > auth.users.id [update: cascade, delete: cascade]
