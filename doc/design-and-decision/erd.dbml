@@ -92,6 +92,9 @@ Table public.pto_banks {
   year integer [not null]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
+  original_annual_balance integer [default: `0`]
+  original_extended_balance integer [default: `0`]
+  original_seniority_balance integer [default: `0`]
 
   indexes {
     id [pk, name: 'pto_banks_pkey', type: btree]

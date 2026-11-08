@@ -55,6 +55,9 @@ class PtoBankRecord(SQLModel, table=True):
     annual_balance: int
     extended_balance: int
     seniority_balance: int
+    original_annual_balance: int = Field(default=0)
+    original_extended_balance: int = Field(default=0)
+    original_seniority_balance: int = Field(default=0)
     year: int
     created_at: datetime = Field(
         default_factory=_utc_now,

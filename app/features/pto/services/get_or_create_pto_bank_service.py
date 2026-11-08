@@ -78,14 +78,19 @@ class GetOrCreatePtoBankService:
             if last_year_bank is not None
             else 0
         )
+        annual_balance = ANNUAL_DAYS * MINUTES_PER_WORK_DAY
+        seniority_balance = self.__seniority_target(profile, date.today())
 
         return await self.__create_pto_bank_writer.handle(
             db_session,
             owner_id=user_id,
             year=year,
-            annual_balance=ANNUAL_DAYS * MINUTES_PER_WORK_DAY,
+            annual_balance=annual_balance,
             extended_balance=extended_balance,
-            seniority_balance=self.__seniority_target(profile, date.today()),
+            seniority_balance=seniority_balance,
+            original_annual_balance=annual_balance,
+            original_extended_balance=extended_balance,
+            original_seniority_balance=seniority_balance,
         )
 
     async def __accrue_seniority_balance(
