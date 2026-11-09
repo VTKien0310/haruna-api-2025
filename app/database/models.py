@@ -4,6 +4,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     Column,
     DateTime,
+    Identity,
+    Integer,
     MetaData,
     SmallInteger,
     Time,
@@ -95,6 +97,29 @@ class PtoAffectEntryRecord(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class UserSpecialPermissionRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "user_special_permissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "permission",
+            name="user_special_permissions_user_id_permission_key",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(Integer, Identity(always=False), primary_key=True),
+    )
+    user_id: UUID
+    permission: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    created_at: datetime = Field(
         default_factory=_utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )

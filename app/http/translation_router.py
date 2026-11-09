@@ -3,7 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from app.core import error_response
-from app.features.auth.guards import AuthenticatedGuardDep, CurrentAuthenticatedUserDep
+from app.features.authentication.guards import (
+    AuthenticatedGuardDep,
+    CurrentAuthenticatedUserDep,
+)
 from app.features.translation.entities import Language
 from app.features.translation.requests import TranslateRequest
 from app.features.translation.responses import TranslateResponse

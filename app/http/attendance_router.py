@@ -4,7 +4,10 @@ from app.core import error_response
 from app.features.attendance.entities import CheckInEntry
 from app.features.attendance.requests import CreateCheckInRequest
 from app.features.attendance.services import CreateCheckInServiceDep
-from app.features.auth.guards import AuthenticatedGuardDep, CurrentAuthenticatedUserDep
+from app.features.authentication.guards import (
+    AuthenticatedGuardDep,
+    CurrentAuthenticatedUserDep,
+)
 
 router = APIRouter(
     prefix="/attendance", tags=["attendance"], dependencies=[AuthenticatedGuardDep]
