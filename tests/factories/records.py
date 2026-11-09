@@ -173,6 +173,8 @@ def insert_work_time_entry(
         "id": "work-time-1",
         "date": "2026-01-08",
         "type": 0,
+        "duration": 0,
+        "time": 0,
     }
     row.update(overrides)
     return insert_row(connection, "work_time_entries", row)

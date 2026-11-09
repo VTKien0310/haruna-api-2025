@@ -184,7 +184,9 @@ Table public.webpage_bookmarks {
 Table public.work_time_entries {
   id uuid [not null, default: `gen_random_uuid()`]
   date date [not null]
-  type smallint [not null]
+  type smallint [not null, note: 'Drift direction: 0 = late, 1 = early']
+  duration integer [not null, default: 0, note: 'Nonnegative drift in minutes']
+  time smallint [not null, default: 0, note: 'Shift: 0 = morning, 1 = afternoon']
 
   indexes {
     id [pk, name: 'work_time_entries_pkey', type: btree]

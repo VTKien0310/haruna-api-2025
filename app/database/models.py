@@ -80,6 +80,45 @@ class CheckInEntryRecord(SQLModel, table=True):
     time: dt_time = Field(sa_column=Column(Time, nullable=False))
 
 
+class TimeOffEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "time_off_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    type: int = Field(sa_column=Column(SmallInteger, nullable=False))
+
+
+class RemoteWorkEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "remote_work_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    type: int = Field(sa_column=Column(SmallInteger, nullable=False))
+
+
+class WorkTimeEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "work_time_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    type: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    duration: int = Field(sa_column=Column(Integer, nullable=False, default=0))
+    time: int = Field(sa_column=Column(SmallInteger, nullable=False, default=0))
+
+
+class LeaveWorkEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "leave_work_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    start: dt_time = Field(sa_column=Column(Time, nullable=False))
+    end: dt_time = Field(sa_column=Column(Time, nullable=False))
+
+
 class PtoAffectEntryRecord(SQLModel, table=True):
     metadata = model_common_metadata
     __tablename__ = "pto_affect_entries"

@@ -88,7 +88,9 @@ CREATE TABLE time_off_entries (
 CREATE TABLE work_time_entries (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) NOT NULL,
     date TEXT NOT NULL,
-    type INTEGER NOT NULL
+    type INTEGER NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 0,
+    time INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE workday_exceptions (
