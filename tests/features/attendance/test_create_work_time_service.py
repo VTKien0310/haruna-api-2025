@@ -67,6 +67,7 @@ async def test_stores_work_time_and_its_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == work_time.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.WORK_TIME.value
+    assert affect_rows[0].no_deduction == 0
 
 
 async def test_late_and_early_can_coexist_below_full_shift_duration(

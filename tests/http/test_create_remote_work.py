@@ -55,6 +55,7 @@ async def test_post_remote_work_stores_entry_and_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "remote_work_entries"
+    assert affect_rows[0].no_deduction == 1
 
 
 async def test_post_remote_work_reports_a_conflicting_shift(

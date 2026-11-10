@@ -63,6 +63,7 @@ async def test_creates_one_entry_and_affect_row_for_each_date(
     assert {row.entry_type for row in affect_rows} == {
         PtoAffectEntryType.TIME_OFF.value
     }
+    assert {row.no_deduction for row in affect_rows} == {0}
 
 
 async def test_morning_and_afternoon_time_off_can_coexist(

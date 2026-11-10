@@ -38,6 +38,7 @@ class CreateTimeOffService:
         start_date: date,
         end_date: date | None,
         entry_type: TimeOffType,
+        no_deduction: int | None = None,
     ) -> list[TimeOffEntry]:
         end_date = end_date or start_date
         days = [
@@ -82,6 +83,7 @@ class CreateTimeOffService:
                     owner_id=user_id,
                     entry_id=entry.id,
                     entry_type=PtoAffectEntryType.TIME_OFF,
+                    no_deduction=no_deduction,
                 )
                 entries.append(entry)
 

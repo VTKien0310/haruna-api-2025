@@ -64,6 +64,7 @@ async def test_stores_remote_work_and_its_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == remote_work.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.REMOTE_WORK.value
+    assert affect_rows[0].no_deduction == 1
 
 
 async def test_morning_and_afternoon_remote_work_can_coexist(

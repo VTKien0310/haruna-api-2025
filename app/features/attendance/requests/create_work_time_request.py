@@ -16,3 +16,12 @@ class CreateWorkTimeRequest(BaseModel):
         le=240,
         description="Minutes of drift within the shift (1–240).",
     )
+    no_deduction: int | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "PTO deduction flag: 0 applies normal deduction and 1 skips deduction. "
+            "Defaults to 0 when omitted."
+        ),
+    )

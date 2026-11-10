@@ -26,17 +26,31 @@ async def test_post_work_time_rejects_a_missing_token(
     assert body["content"]["error"]["code"] == "unauthorized"
 
 
+@pytest.mark.parametrize(
+    ("requested_no_deduction", "expected_no_deduction"),
+    [(None, 0), (0, 0), (1, 1)],
+)
 async def test_post_work_time_stores_entry_and_affect_row(
     db_client: TestClient,
     db_session_manager: DbSessionManager,
     supabase: SqliteSupabasePort,
+    requested_no_deduction: int | None,
+    expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    payload: dict[str, str | int] = {
+        "date": DAY,
+        "time": 1,
+        "type": 0,
+        "duration": 45,
+    }
+    if requested_no_deduction is not None:
+        payload["no_deduction"] = requested_no_deduction
 
     response = db_client.post(
         "/api/attendance/work-times",
         headers={"Authorization": "Bearer token-1"},
-        json={"date": DAY, "time": 1, "type": 0, "duration": 45},
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -60,6 +74,7 @@ async def test_post_work_time_stores_entry_and_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "work_time_entries"
+    assert affect_rows[0].no_deduction == expected_no_deduction
 
 
 async def test_post_work_time_rejects_the_same_type_in_the_same_shift(
@@ -133,6 +148,8 @@ async def test_same_work_time_type_in_different_shifts_is_allowed(
         {"date": DAY, "time": 0, "type": 2, "duration": 60},
         {"date": DAY, "time": 0, "type": 0, "duration": 0},
         {"date": DAY, "time": 0, "type": 0, "duration": 241},
+        {"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": -1},
+        {"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": 2},
     ],
 )
 async def test_post_work_time_rejects_invalid_fields(

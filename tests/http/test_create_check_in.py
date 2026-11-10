@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import select
 
@@ -23,17 +24,26 @@ async def test_post_check_in_rejects_a_missing_token(db_client: TestClient) -> N
     assert body["content"]["error"]["code"] == "unauthorized"
 
 
+@pytest.mark.parametrize(
+    ("requested_no_deduction", "expected_no_deduction"),
+    [(None, 0), (0, 0), (1, 1)],
+)
 async def test_post_check_in_stores_the_arrival_and_the_affect_row(
     db_client: TestClient,
     db_session_manager: DbSessionManager,
     supabase: SqliteSupabasePort,
+    requested_no_deduction: int | None,
+    expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    payload: dict[str, str | int] = {"date": SUNDAY, "time": "09:00:59"}
+    if requested_no_deduction is not None:
+        payload["no_deduction"] = requested_no_deduction
 
     response = db_client.post(
         "/api/attendance/check-ins",
         headers={"Authorization": "Bearer token-1"},
-        json={"date": SUNDAY, "time": "09:00:59"},
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -50,7 +60,7 @@ async def test_post_check_in_stores_the_arrival_and_the_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "check_in_entries"
-    assert affect_rows[0].no_deduction == 0
+    assert affect_rows[0].no_deduction == expected_no_deduction
 
 
 async def test_post_check_in_reports_an_existing_arrival(
@@ -96,7 +106,7 @@ async def test_post_check_in_allows_another_caller_on_the_same_date(
     assert second.json()["content"]["time"] == "08:45:00"
 
 
-async def test_post_check_in_rejects_an_unparseable_body(
+async def test_post_check_in_rejects_invalid_fields(
     db_client: TestClient,
     supabase: SqliteSupabasePort,
 ) -> None:
@@ -105,6 +115,8 @@ async def test_post_check_in_rejects_an_unparseable_body(
     for payload in (
         {"date": "not-a-date", "time": "09:00"},
         {"date": SUNDAY, "time": "not-a-time"},
+        {"date": SUNDAY, "time": "09:00", "no_deduction": -1},
+        {"date": SUNDAY, "time": "09:00", "no_deduction": 2},
     ):
         response = db_client.post(
             "/api/attendance/check-ins",

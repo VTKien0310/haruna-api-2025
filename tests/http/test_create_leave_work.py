@@ -26,17 +26,30 @@ async def test_post_leave_work_rejects_a_missing_token(
     assert body["content"]["error"]["code"] == "unauthorized"
 
 
+@pytest.mark.parametrize(
+    ("requested_no_deduction", "expected_no_deduction"),
+    [(None, 0), (0, 0), (1, 1)],
+)
 async def test_post_leave_work_drops_seconds_and_stores_affect_row(
     db_client: TestClient,
     db_session_manager: DbSessionManager,
     supabase: SqliteSupabasePort,
+    requested_no_deduction: int | None,
+    expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    payload: dict[str, str | int] = {
+        "date": DAY,
+        "start": "09:00:59",
+        "end": "10:00:59",
+    }
+    if requested_no_deduction is not None:
+        payload["no_deduction"] = requested_no_deduction
 
     response = db_client.post(
         "/api/attendance/leave-works",
         headers={"Authorization": "Bearer token-1"},
-        json={"date": DAY, "start": "09:00:59", "end": "10:00:59"},
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -56,6 +69,7 @@ async def test_post_leave_work_drops_seconds_and_stores_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "leave_work_entries"
+    assert affect_rows[0].no_deduction == expected_no_deduction
 
 
 async def test_post_leave_work_reports_an_overlapping_interval(
@@ -109,12 +123,14 @@ async def test_post_leave_work_allows_touching_intervals(
         {"date": DAY, "start": "not-a-time", "end": "10:00"},
         {"date": DAY, "start": "10:00", "end": "10:00"},
         {"date": DAY, "start": "10:00:59", "end": "10:00:01"},
+        {"date": DAY, "start": "09:00", "end": "10:00", "no_deduction": -1},
+        {"date": DAY, "start": "09:00", "end": "10:00", "no_deduction": 2},
     ],
 )
-async def test_post_leave_work_rejects_invalid_date_or_interval(
+async def test_post_leave_work_rejects_invalid_fields(
     db_client: TestClient,
     supabase: SqliteSupabasePort,
-    payload: dict[str, date | str],
+    payload: dict[str, date | int | str],
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
 

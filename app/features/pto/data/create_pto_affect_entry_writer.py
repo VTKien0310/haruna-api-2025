@@ -15,11 +15,18 @@ class CreatePtoAffectEntryWriter:
         owner_id: str,
         entry_id: str,
         entry_type: PtoAffectEntryType,
+        no_deduction: int | None = None,
     ) -> PtoAffectEntry:
+        no_deduction = (
+            1
+            if entry_type == PtoAffectEntryType.REMOTE_WORK
+            else (no_deduction if no_deduction is not None else 0)
+        )
         record = PtoAffectEntryRecord(
             owner_id=UUID(owner_id),
             entry_id=UUID(entry_id),
             entry_type=entry_type.value,
+            no_deduction=no_deduction,
         )
         db_session.add(record)
         await db_session.flush()

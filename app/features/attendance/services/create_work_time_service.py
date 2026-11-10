@@ -44,6 +44,7 @@ class CreateWorkTimeService:
         shift: WorkTimeShift,
         entry_type: WorkTimeType,
         duration: int,
+        no_deduction: int | None = None,
     ) -> WorkTimeEntry:
         async with self.__db_session_manager.transaction() as db_session:
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
@@ -80,6 +81,7 @@ class CreateWorkTimeService:
                 owner_id=user_id,
                 entry_id=work_time.id,
                 entry_type=PtoAffectEntryType.WORK_TIME,
+                no_deduction=no_deduction,
             )
 
             return work_time

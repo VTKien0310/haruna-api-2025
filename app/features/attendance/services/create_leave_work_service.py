@@ -38,6 +38,7 @@ class CreateLeaveWorkService:
         day: date,
         start: time,
         end: time,
+        no_deduction: int | None = None,
     ) -> LeaveWorkEntry:
         async with self.__db_session_manager.transaction() as db_session:
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
@@ -67,6 +68,7 @@ class CreateLeaveWorkService:
                 owner_id=user_id,
                 entry_id=leave_work.id,
                 entry_type=PtoAffectEntryType.LEAVE_WORK,
+                no_deduction=no_deduction,
             )
 
             return leave_work

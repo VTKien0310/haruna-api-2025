@@ -60,6 +60,7 @@ async def test_stores_leave_work_and_its_affect_row(
     assert str(affect_rows[0].owner_id) == TEST_USER_ID
     assert str(affect_rows[0].entry_id) == leave_work.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.LEAVE_WORK.value
+    assert affect_rows[0].no_deduction == 0
 
 
 async def test_touching_leave_work_intervals_are_allowed(

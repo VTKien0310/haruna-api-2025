@@ -32,7 +32,13 @@ class CreateCheckInService:
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__db_session_manager = db_session_manager
 
-    async def handle(self, user_id: str, day: date, arrival: time) -> CheckInEntry:
+    async def handle(
+        self,
+        user_id: str,
+        day: date,
+        arrival: time,
+        no_deduction: int | None = None,
+    ) -> CheckInEntry:
         async with self.__db_session_manager.transaction() as db_session:
             arrival = arrival.replace(second=0, microsecond=0)
 
@@ -60,6 +66,7 @@ class CreateCheckInService:
                 owner_id=user_id,
                 entry_id=check_in.id,
                 entry_type=PtoAffectEntryType.CHECK_IN,
+                no_deduction=no_deduction,
             )
 
             return check_in

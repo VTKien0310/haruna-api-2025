@@ -40,12 +40,15 @@ router = APIRouter(
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date of the arrival and time is the local clock time "
         "(HH:MM or HH:MM:SS). Seconds and microseconds are dropped and the time is stored as "
-        "HH:MM:00 in the company's local clock. Any calendar date and any clock time are stored.\n\n"
+        "HH:MM:00 in the company's local clock. Any calendar date and any clock time are stored. "
+        "no_deduction is optional: 0 applies the normal PTO deduction rule and 1 marks an "
+        "exception that skips deduction; it defaults to 0.\n\n"
         "Responses:\n"
         "- 200: the stored check-in (id, date, time)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
         "- 409: check_in_already_exists when this caller already has an arrival on that date\n"
-        "- 422: validation_error when date or time is missing or unparseable\n"
+        "- 422: validation_error when date or time is missing or unparseable, or no_deduction "
+        "is not 0 or 1\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
@@ -59,7 +62,9 @@ async def create_check_in(
     user: CurrentAuthenticatedUserDep,
     create_check_in_service: CreateCheckInServiceDep,
 ) -> CheckInEntry:
-    return await create_check_in_service.handle(user.id, request.date, request.time)
+    return await create_check_in_service.handle(
+        user.id, request.date, request.time, request.no_deduction
+    )
 
 
 @router.post(
@@ -70,14 +75,18 @@ async def create_check_in(
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: start_date is required; end_date is optional, inclusive, and defaults to "
         "start_date. A multi-date range must use type 0 (full day); type 1 is morning "
-        "and type 2 is afternoon. Ranges include weekends and are limited to 366 dates.\n\n"
+        "and type 2 is afternoon. Ranges include weekends and are limited to 366 dates. "
+        "no_deduction is optional: 0 applies the normal PTO deduction rule and 1 marks an "
+        "exception that skips deduction; it defaults to 0 and applies to every date in the "
+        "range.\n\n"
         "Responses:\n"
         "- 200: the created time-off entries, one per date\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
         "- 409: time_off_already_exists when this caller already has a conflicting "
         "time-off entry on a date in the range\n"
         "- 422: validation_error when dates are invalid, the range exceeds 366 dates, "
-        "a multi-date range is not full day, or type is not 0, 1, or 2\n"
+        "a multi-date range is not full day, type is not 0, 1, or 2, or no_deduction is "
+        "not 0 or 1\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
@@ -97,6 +106,7 @@ async def create_time_off(
         request.start_date,
         request.end_date,
         request.type,
+        request.no_deduction,
     )
 
 
@@ -109,7 +119,8 @@ async def create_time_off(
         "Body: date is the calendar date and type is 0 for full day, 1 for morning, or "
         "2 for afternoon. Full-day remote work conflicts with either shift; morning "
         "and afternoon remote work can coexist. Records of another kind on the same "
-        "date do not conflict.\n\n"
+        "date do not conflict. Its PTO affect entry always uses no_deduction 1 because "
+        "remote work never deducts PTO.\n\n"
         "Responses:\n"
         "- 200: the stored remote-work entry (id, date, type)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -143,14 +154,16 @@ async def create_remote_work(
         "type is 0 for late coverage or 1 for leaving work early; duration is the "
         "drift in minutes from 1 through 240. A type can be recorded once per shift. "
         "Late and early entries can coexist only when their combined duration is less "
-        "than 240 minutes. Different shifts do not conflict.\n\n"
+        "than 240 minutes. Different shifts do not conflict. no_deduction is optional: "
+        "0 applies the normal PTO deduction rule and 1 marks an exception that skips "
+        "deduction; it defaults to 0.\n\n"
         "Responses:\n"
         "- 200: the stored work-time entry (id, date, time, type, duration)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
         "- 409: work_time_already_exists for the same type in the same shift, or "
         "work_time_overlaps when durations cover the whole shift\n"
         "- 422: validation_error when date is invalid, time is not 0 or 1, type is not "
-        "0 or 1, or duration is outside 1–240\n"
+        "0 or 1, duration is outside 1–240, or no_deduction is not 0 or 1\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
@@ -173,6 +186,7 @@ async def create_work_time(
         request.time,
         request.type,
         request.duration,
+        request.no_deduction,
     )
 
 
@@ -184,13 +198,16 @@ async def create_work_time(
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date; start and end are local clock times. Seconds "
         "and microseconds are dropped, and start must be before end after dropping "
-        "seconds. Intervals that only touch are allowed; overlapping intervals are not.\n\n"
+        "seconds. Intervals that only touch are allowed; overlapping intervals are not. "
+        "no_deduction is optional: 0 applies the normal PTO deduction rule and 1 marks an "
+        "exception that skips deduction; it defaults to 0.\n\n"
         "Responses:\n"
         "- 200: the stored leave-work entry (id, date, start, end)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
         "- 409: leave_work_overlaps when this caller already has an overlapping "
         "leave-work interval on that date\n"
-        "- 422: validation_error when date or times are invalid, or start is not before end\n"
+        "- 422: validation_error when date or times are invalid, start is not before end, "
+        "or no_deduction is not 0 or 1\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
@@ -210,4 +227,5 @@ async def create_leave_work(
         request.date,
         request.start,
         request.end,
+        request.no_deduction,
     )

@@ -15,6 +15,15 @@ class CreateTimeOffRequest(BaseModel):
     type: TimeOffType = Field(
         description="0 for full day, 1 for morning, or 2 for afternoon."
     )
+    no_deduction: int | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "PTO deduction flag: 0 applies normal deduction and 1 skips deduction. "
+            "Defaults to 0 when omitted and applies to every date in the range."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_date_range(self) -> Self:

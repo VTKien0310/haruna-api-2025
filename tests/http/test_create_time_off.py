@@ -23,17 +23,30 @@ async def test_post_time_off_rejects_a_missing_token(db_client: TestClient) -> N
     assert body["content"]["error"]["code"] == "unauthorized"
 
 
+@pytest.mark.parametrize(
+    ("requested_no_deduction", "expected_no_deduction"),
+    [(None, 0), (0, 0), (1, 1)],
+)
 async def test_post_time_off_stores_a_range_and_affect_rows(
     db_client: TestClient,
     db_session_manager: DbSessionManager,
     supabase: SqliteSupabasePort,
+    requested_no_deduction: int | None,
+    expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    payload: dict[str, str | int] = {
+        "start_date": FIRST_DAY,
+        "end_date": "2026-01-07",
+        "type": 0,
+    }
+    if requested_no_deduction is not None:
+        payload["no_deduction"] = requested_no_deduction
 
     response = db_client.post(
         "/api/attendance/time-offs",
         headers={"Authorization": "Bearer token-1"},
-        json={"start_date": FIRST_DAY, "end_date": "2026-01-07", "type": 0},
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -57,6 +70,7 @@ async def test_post_time_off_stores_a_range_and_affect_rows(
     }
     assert {str(row.owner_id) for row in affect_rows} == {TEST_USER_ID}
     assert {row.entry_type for row in affect_rows} == {"time_off_entries"}
+    assert {row.no_deduction for row in affect_rows} == {expected_no_deduction}
 
 
 async def test_post_time_off_reports_a_conflicting_shift(
@@ -91,9 +105,11 @@ async def test_post_time_off_reports_a_conflicting_shift(
         {"start_date": FIRST_DAY, "end_date": "2026-01-06", "type": 1},
         {"start_date": FIRST_DAY, "end_date": "2027-01-06", "type": 0},
         {"start_date": FIRST_DAY, "type": 3},
+        {"start_date": FIRST_DAY, "type": 0, "no_deduction": -1},
+        {"start_date": FIRST_DAY, "type": 0, "no_deduction": 2},
     ],
 )
-async def test_post_time_off_rejects_invalid_date_ranges_or_type(
+async def test_post_time_off_rejects_invalid_fields(
     db_client: TestClient,
     supabase: SqliteSupabasePort,
     payload: dict[str, date | int | str],
