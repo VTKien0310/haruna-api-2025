@@ -3,6 +3,7 @@ from .models import CheckInEntryRecord as CheckInEntryRecord
 from .models import LeaveWorkEntryRecord as LeaveWorkEntryRecord
 from .models import PtoAffectEntryRecord as PtoAffectEntryRecord
 from .models import PtoBankRecord as PtoBankRecord
+from .models import PtoTransactionRecord as PtoTransactionRecord
 from .models import RemoteWorkEntryRecord as RemoteWorkEntryRecord
 from .models import TimeOffEntryRecord as TimeOffEntryRecord
 from .models import UserSpecialPermissionRecord as UserSpecialPermissionRecord

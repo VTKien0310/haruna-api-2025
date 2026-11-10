@@ -141,6 +141,25 @@ class PtoAffectEntryRecord(SQLModel, table=True):
     )
 
 
+class PtoTransactionRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "pto_transactions"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    pto_bank_id: UUID
+    entry_id: UUID
+    cause: str
+    value: int
+    exceed_bank_value: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    created_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
 class UserSpecialPermissionRecord(SQLModel, table=True):
     metadata = model_common_metadata
     __tablename__ = "user_special_permissions"
