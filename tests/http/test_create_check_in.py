@@ -61,6 +61,34 @@ async def test_post_check_in_stores_the_arrival_and_the_affect_row(
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "check_in_entries"
     assert affect_rows[0].no_deduction == expected_no_deduction
+    assert affect_rows[0].note == ""
+
+
+@pytest.mark.parametrize(
+    ("requested_note", "expected_note"),
+    [(None, ""), ("arrived after the train", "arrived after the train")],
+)
+async def test_post_check_in_stores_an_optional_affect_note(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    requested_note: str | None,
+    expected_note: str,
+) -> None:
+    supabase.auth().register("token-1", user_id=TEST_USER_ID)
+
+    response = db_client.post(
+        "/api/attendance/check-ins",
+        headers={"Authorization": "Bearer token-1"},
+        json={"date": SUNDAY, "time": "09:00", "note": requested_note},
+    )
+
+    assert response.status_code == 200
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == expected_note
 
 
 async def test_post_check_in_reports_an_existing_arrival(
@@ -117,6 +145,7 @@ async def test_post_check_in_rejects_invalid_fields(
         {"date": SUNDAY, "time": "not-a-time"},
         {"date": SUNDAY, "time": "09:00", "no_deduction": -1},
         {"date": SUNDAY, "time": "09:00", "no_deduction": 2},
+        {"date": SUNDAY, "time": "09:00", "note": 1},
     ):
         response = db_client.post(
             "/api/attendance/check-ins",

@@ -37,6 +37,7 @@ class CreateRemoteWorkService:
         user_id: str,
         day: date,
         entry_type: RemoteWorkType,
+        note: str | None = None,
     ) -> RemoteWorkEntry:
         async with self.__db_session_manager.transaction() as db_session:
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
@@ -68,6 +69,7 @@ class CreateRemoteWorkService:
                 owner_id=user_id,
                 entry_id=remote_work.id,
                 entry_type=PtoAffectEntryType.REMOTE_WORK,
+                note=note,
             )
 
             return remote_work

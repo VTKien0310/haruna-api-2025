@@ -56,6 +56,35 @@ async def test_post_remote_work_stores_entry_and_affect_row(
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "remote_work_entries"
     assert affect_rows[0].no_deduction == 1
+    assert affect_rows[0].note == ""
+
+
+@pytest.mark.parametrize(
+    ("requested_note", "expected_note"),
+    [(None, ""), ("home office", "home office")],
+)
+async def test_post_remote_work_stores_an_optional_affect_note(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    requested_note: str | None,
+    expected_note: str,
+) -> None:
+    supabase.auth().register("token-1", user_id=TEST_USER_ID)
+
+    response = db_client.post(
+        "/api/attendance/remote-works",
+        headers={"Authorization": "Bearer token-1"},
+        json={"date": DAY, "type": 0, "note": requested_note},
+    )
+
+    assert response.status_code == 200
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == expected_note
+    assert affect_rows[0].no_deduction == 1
 
 
 async def test_post_remote_work_reports_a_conflicting_shift(
@@ -109,6 +138,7 @@ async def test_remote_work_does_not_conflict_with_time_off(
     [
         {"date": "not-a-date", "type": 0},
         {"date": DAY, "type": 3},
+        {"date": DAY, "type": 0, "note": 1},
     ],
 )
 async def test_post_remote_work_rejects_invalid_date_or_type(

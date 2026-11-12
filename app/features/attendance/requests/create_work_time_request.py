@@ -25,3 +25,10 @@ class CreateWorkTimeRequest(BaseModel):
             "Defaults to 0 when omitted."
         ),
     )
+    note: str | None = Field(
+        default=None,
+        description=(
+            "Optional note stored on the linked PTO affect entry. "
+            "An omitted or null note is stored as an empty string."
+        ),
+    )

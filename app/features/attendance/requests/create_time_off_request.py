@@ -24,6 +24,13 @@ class CreateTimeOffRequest(BaseModel):
             "Defaults to 0 when omitted and applies to every date in the range."
         ),
     )
+    note: str | None = Field(
+        default=None,
+        description=(
+            "Optional note stored on each linked PTO affect entry in the range. "
+            "An omitted or null note is stored as an empty string."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_date_range(self) -> Self:

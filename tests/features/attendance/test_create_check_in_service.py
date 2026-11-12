@@ -83,6 +83,21 @@ async def test_stores_the_check_in_and_the_affect_row(
     assert str(affect_row.entry_id) == check_in.id
     assert affect_row.entry_type == PtoAffectEntryType.CHECK_IN.value
     assert affect_row.no_deduction == 0
+    assert affect_row.note == ""
+
+
+async def test_stores_an_optional_affect_note(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, SUNDAY, time(9, 0), note="arrived after the train"
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == "arrived after the train"
 
 
 async def test_a_second_check_in_on_the_same_date_is_rejected(

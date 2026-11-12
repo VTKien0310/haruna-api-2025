@@ -61,6 +61,21 @@ async def test_stores_leave_work_and_its_affect_row(
     assert str(affect_rows[0].entry_id) == leave_work.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.LEAVE_WORK.value
     assert affect_rows[0].no_deduction == 0
+    assert affect_rows[0].note == ""
+
+
+async def test_stores_an_optional_affect_note(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, DAY, time(9, 0), time(10, 0), note="clinic visit"
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == "clinic visit"
 
 
 async def test_touching_leave_work_intervals_are_allowed(

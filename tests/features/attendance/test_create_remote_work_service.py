@@ -65,6 +65,22 @@ async def test_stores_remote_work_and_its_affect_row(
     assert str(affect_rows[0].entry_id) == remote_work.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.REMOTE_WORK.value
     assert affect_rows[0].no_deduction == 1
+    assert affect_rows[0].note == ""
+
+
+async def test_stores_an_optional_affect_note(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, DAY, RemoteWorkType.FULL_DAY, note="home office"
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == "home office"
+    assert affect_rows[0].no_deduction == 1
 
 
 async def test_morning_and_afternoon_remote_work_can_coexist(

@@ -75,6 +75,40 @@ async def test_post_work_time_stores_entry_and_affect_row(
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "work_time_entries"
     assert affect_rows[0].no_deduction == expected_no_deduction
+    assert affect_rows[0].note == ""
+
+
+@pytest.mark.parametrize(
+    ("requested_note", "expected_note"),
+    [(None, ""), ("left for the school run", "left for the school run")],
+)
+async def test_post_work_time_stores_an_optional_affect_note(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    requested_note: str | None,
+    expected_note: str,
+) -> None:
+    supabase.auth().register("token-1", user_id=TEST_USER_ID)
+
+    response = db_client.post(
+        "/api/attendance/work-times",
+        headers={"Authorization": "Bearer token-1"},
+        json={
+            "date": DAY,
+            "time": 0,
+            "type": 0,
+            "duration": 30,
+            "note": requested_note,
+        },
+    )
+
+    assert response.status_code == 200
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == expected_note
 
 
 async def test_post_work_time_rejects_the_same_type_in_the_same_shift(
@@ -150,6 +184,7 @@ async def test_same_work_time_type_in_different_shifts_is_allowed(
         {"date": DAY, "time": 0, "type": 0, "duration": 241},
         {"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": -1},
         {"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": 2},
+        {"date": DAY, "time": 0, "type": 0, "duration": 60, "note": 1},
     ],
 )
 async def test_post_work_time_rejects_invalid_fields(

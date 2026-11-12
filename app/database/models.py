@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     SmallInteger,
+    Text,
     Time,
     UniqueConstraint,
 )
@@ -130,6 +131,10 @@ class PtoAffectEntryRecord(SQLModel, table=True):
     no_deduction: int = Field(
         default=0,
         sa_column=Column(SmallInteger, nullable=False, server_default="0"),
+    )
+    note: str = Field(
+        default="",
+        sa_column=Column(Text, nullable=False, server_default="''"),
     )
     created_at: datetime = Field(
         default_factory=_utc_now,

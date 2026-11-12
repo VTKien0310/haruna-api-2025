@@ -71,6 +71,39 @@ async def test_post_time_off_stores_a_range_and_affect_rows(
     assert {str(row.owner_id) for row in affect_rows} == {TEST_USER_ID}
     assert {row.entry_type for row in affect_rows} == {"time_off_entries"}
     assert {row.no_deduction for row in affect_rows} == {expected_no_deduction}
+    assert {row.note for row in affect_rows} == {""}
+
+
+@pytest.mark.parametrize(
+    ("requested_note", "expected_note"),
+    [(None, ""), ("family trip", "family trip")],
+)
+async def test_post_time_off_stores_the_same_optional_note_on_every_affect_row(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    requested_note: str | None,
+    expected_note: str,
+) -> None:
+    supabase.auth().register("token-1", user_id=TEST_USER_ID)
+
+    response = db_client.post(
+        "/api/attendance/time-offs",
+        headers={"Authorization": "Bearer token-1"},
+        json={
+            "start_date": FIRST_DAY,
+            "end_date": "2026-01-06",
+            "type": 0,
+            "note": requested_note,
+        },
+    )
+
+    assert response.status_code == 200
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 2
+    assert {row.note for row in affect_rows} == {expected_note}
 
 
 async def test_post_time_off_reports_a_conflicting_shift(
@@ -107,6 +140,7 @@ async def test_post_time_off_reports_a_conflicting_shift(
         {"start_date": FIRST_DAY, "type": 3},
         {"start_date": FIRST_DAY, "type": 0, "no_deduction": -1},
         {"start_date": FIRST_DAY, "type": 0, "no_deduction": 2},
+        {"start_date": FIRST_DAY, "type": 0, "note": 1},
     ],
 )
 async def test_post_time_off_rejects_invalid_fields(

@@ -68,6 +68,26 @@ async def test_stores_work_time_and_its_affect_row(
     assert str(affect_rows[0].entry_id) == work_time.id
     assert affect_rows[0].entry_type == PtoAffectEntryType.WORK_TIME.value
     assert affect_rows[0].no_deduction == 0
+    assert affect_rows[0].note == ""
+
+
+async def test_stores_an_optional_affect_note(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID,
+        DAY,
+        WorkTimeShift.MORNING,
+        WorkTimeType.LEAVE_WORK_EARLY,
+        30,
+        note="left for the school run",
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == "left for the school run"
 
 
 async def test_late_and_early_can_coexist_below_full_shift_duration(

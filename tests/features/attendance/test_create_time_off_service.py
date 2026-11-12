@@ -64,6 +64,25 @@ async def test_creates_one_entry_and_affect_row_for_each_date(
         PtoAffectEntryType.TIME_OFF.value
     }
     assert {row.no_deduction for row in affect_rows} == {0}
+    assert {row.note for row in affect_rows} == {""}
+
+
+async def test_stores_the_same_optional_note_on_every_affect_row(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID,
+        FIRST_DAY,
+        date(2026, 1, 6),
+        TimeOffType.FULL_DAY,
+        note="family trip",
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 2
+    assert {row.note for row in affect_rows} == {"family trip"}
 
 
 async def test_morning_and_afternoon_time_off_can_coexist(

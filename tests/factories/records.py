@@ -95,6 +95,7 @@ def insert_pto_affect_entry(
         "entry_id": "check-in-1",
         "entry_type": "check_in_entries",
         "no_deduction": 0,
+        "note": "",
         "created_at": "2026-01-01T00:00:00",
         "updated_at": "2026-01-01T00:00:00",
     }

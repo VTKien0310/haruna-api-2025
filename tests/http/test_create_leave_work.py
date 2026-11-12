@@ -70,6 +70,39 @@ async def test_post_leave_work_drops_seconds_and_stores_affect_row(
     assert str(affect_rows[0].entry_id) == content["id"]
     assert affect_rows[0].entry_type == "leave_work_entries"
     assert affect_rows[0].no_deduction == expected_no_deduction
+    assert affect_rows[0].note == ""
+
+
+@pytest.mark.parametrize(
+    ("requested_note", "expected_note"),
+    [(None, ""), ("clinic visit", "clinic visit")],
+)
+async def test_post_leave_work_stores_an_optional_affect_note(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    requested_note: str | None,
+    expected_note: str,
+) -> None:
+    supabase.auth().register("token-1", user_id=TEST_USER_ID)
+
+    response = db_client.post(
+        "/api/attendance/leave-works",
+        headers={"Authorization": "Bearer token-1"},
+        json={
+            "date": DAY,
+            "start": "09:00",
+            "end": "10:00",
+            "note": requested_note,
+        },
+    )
+
+    assert response.status_code == 200
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == expected_note
 
 
 async def test_post_leave_work_reports_an_overlapping_interval(
@@ -125,6 +158,7 @@ async def test_post_leave_work_allows_touching_intervals(
         {"date": DAY, "start": "10:00:59", "end": "10:00:01"},
         {"date": DAY, "start": "09:00", "end": "10:00", "no_deduction": -1},
         {"date": DAY, "start": "09:00", "end": "10:00", "no_deduction": 2},
+        {"date": DAY, "start": "09:00", "end": "10:00", "note": 1},
     ],
 )
 async def test_post_leave_work_rejects_invalid_fields(
