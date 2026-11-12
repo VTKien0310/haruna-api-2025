@@ -120,7 +120,7 @@ async def test_remote_work_does_not_conflict_with_time_off(
     time_off = db_client.post(
         "/api/attendance/time-offs",
         headers=headers,
-        json={"start_date": DAY, "type": 0},
+        json={"start_date": DAY, "type": 0, "no_deduction": 1},
     )
 
     remote_work = db_client.post(

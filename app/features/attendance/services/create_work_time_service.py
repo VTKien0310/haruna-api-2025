@@ -20,6 +20,7 @@ from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
 )
 from app.features.pto.entities import PtoAffectEntryType
+from app.features.pto.services import DeductPtoForEntryServiceDep
 
 
 class CreateWorkTimeService:
@@ -29,12 +30,14 @@ class CreateWorkTimeService:
         find_work_time_entries_reader: FindWorkTimeEntriesByIdsAndDateReaderDep,
         create_work_time_entry_writer: CreateWorkTimeEntryWriterDep,
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
+        deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_work_time_entries_reader = find_work_time_entries_reader
         self.__create_work_time_entry_writer = create_work_time_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
+        self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
 
     async def handle(
@@ -77,13 +80,16 @@ class CreateWorkTimeService:
             work_time = await self.__create_work_time_entry_writer.handle(
                 db_session, day, shift, entry_type, duration
             )
-            await self.__create_pto_affect_entry_writer.handle(
+            affect_entry = await self.__create_pto_affect_entry_writer.handle(
                 db_session,
                 owner_id=user_id,
                 entry_id=work_time.id,
                 entry_type=PtoAffectEntryType.WORK_TIME,
                 no_deduction=no_deduction,
                 note=note,
+            )
+            await self.__deduct_pto_for_entry_service.handle(
+                db_session, user_id, affect_entry, duration, day.year
             )
 
             return work_time

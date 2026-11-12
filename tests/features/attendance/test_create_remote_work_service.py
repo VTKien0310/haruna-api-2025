@@ -5,7 +5,12 @@ import pytest
 from sqlmodel import select
 
 from app.core import AppException
-from app.database import DbSessionManager, PtoAffectEntryRecord, RemoteWorkEntryRecord
+from app.database import (
+    DbSessionManager,
+    PtoAffectEntryRecord,
+    PtoTransactionRecord,
+    RemoteWorkEntryRecord,
+)
 from app.features.attendance.data import (
     CreateRemoteWorkEntryWriter,
     CreateTimeOffEntryWriter,
@@ -23,6 +28,7 @@ from app.features.pto.data import (
 )
 from app.features.pto.entities import PtoAffectEntryType
 from tests.factories.database_records import TEST_USER_ID
+from tests.support.pto_services import NoopDeductPtoForEntryService
 
 DAY = date(2026, 1, 5)
 OTHER_USER_ID = str(uuid4())
@@ -127,6 +133,7 @@ async def test_time_off_does_not_conflict_with_remote_work(
         FindTimeOffEntriesByIdsAndDatesReader(),
         CreateTimeOffEntryWriter(),
         CreatePtoAffectEntryWriter(),
+        NoopDeductPtoForEntryService(),
         db_session_manager,
     )
     await time_off_service.handle(TEST_USER_ID, DAY, None, TimeOffType.FULL_DAY)
@@ -169,3 +176,16 @@ async def test_affect_insert_failure_rolls_back_remote_work_entry(
 
     assert records == []
     assert affect_rows == []
+
+
+async def test_remote_work_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, DAY, RemoteWorkType.FULL_DAY
+    )
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []

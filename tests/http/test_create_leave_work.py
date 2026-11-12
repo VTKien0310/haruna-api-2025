@@ -6,10 +6,25 @@ from fastapi.testclient import TestClient
 from sqlmodel import select
 
 from app.database import DbSessionManager, LeaveWorkEntryRecord, PtoAffectEntryRecord
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_pto_bank_record,
+    make_profile_record,
+)
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
 DAY = "2026-01-05"
+CURRENT_YEAR = str(date.today().year)
+
+
+async def _seed_user(db_session_manager: DbSessionManager) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(
+                year=date.today().year, annual_balance=0, seniority_balance=0
+            )
+        )
 
 
 async def test_post_leave_work_rejects_a_missing_token(
@@ -38,8 +53,9 @@ async def test_post_leave_work_drops_seconds_and_stores_affect_row(
     expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    await _seed_user(db_session_manager)
     payload: dict[str, str | int] = {
-        "date": DAY,
+        "date": f"{CURRENT_YEAR}-01-05",
         "start": "09:00:59",
         "end": "10:00:59",
     }
@@ -56,7 +72,7 @@ async def test_post_leave_work_drops_seconds_and_stores_affect_row(
     body = response.json()
     assert body["ok"] is True
     content = body["content"]
-    assert content["date"] == DAY
+    assert content["date"] == f"{CURRENT_YEAR}-01-05"
     assert content["start"] == "09:00:00"
     assert content["end"] == "10:00:00"
 
@@ -94,6 +110,7 @@ async def test_post_leave_work_stores_an_optional_affect_note(
             "start": "09:00",
             "end": "10:00",
             "note": requested_note,
+            "no_deduction": 1,
         },
     )
 
@@ -114,7 +131,7 @@ async def test_post_leave_work_reports_an_overlapping_interval(
     db_client.post(
         "/api/attendance/leave-works",
         headers=headers,
-        json={"date": DAY, "start": "10:00", "end": "11:00"},
+        json={"date": DAY, "start": "10:00", "end": "11:00", "no_deduction": 1},
     )
 
     response = db_client.post(
@@ -138,12 +155,12 @@ async def test_post_leave_work_allows_touching_intervals(
     first = db_client.post(
         "/api/attendance/leave-works",
         headers=headers,
-        json={"date": DAY, "start": "10:00", "end": "11:00"},
+        json={"date": DAY, "start": "10:00", "end": "11:00", "no_deduction": 1},
     )
     second = db_client.post(
         "/api/attendance/leave-works",
         headers=headers,
-        json={"date": DAY, "start": "11:00", "end": "12:00"},
+        json={"date": DAY, "start": "11:00", "end": "12:00", "no_deduction": 1},
     )
 
     assert first.status_code == second.status_code == 200

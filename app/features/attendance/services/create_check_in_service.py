@@ -5,6 +5,7 @@ from fastapi import Depends, status
 
 from app.core import AppException
 from app.database import DbSessionManagerDep
+from app.features.attendance.constants import WORK_START_MINUTES
 from app.features.attendance.data import (
     CreateCheckInEntryWriterDep,
     FindCheckInEntryByIdsAndDateReaderDep,
@@ -15,6 +16,7 @@ from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
 )
 from app.features.pto.entities import PtoAffectEntryType
+from app.features.pto.services import DeductPtoForEntryServiceDep
 
 
 class CreateCheckInService:
@@ -24,12 +26,14 @@ class CreateCheckInService:
         find_check_in_entry_reader: FindCheckInEntryByIdsAndDateReaderDep,
         create_check_in_entry_writer: CreateCheckInEntryWriterDep,
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
+        deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_check_in_entry_reader = find_check_in_entry_reader
         self.__create_check_in_entry_writer = create_check_in_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
+        self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
 
     async def handle(
@@ -62,7 +66,7 @@ class CreateCheckInService:
             check_in = await self.__create_check_in_entry_writer.handle(
                 db_session, day, arrival
             )
-            await self.__create_pto_affect_entry_writer.handle(
+            affect_entry = await self.__create_pto_affect_entry_writer.handle(
                 db_session,
                 owner_id=user_id,
                 entry_id=check_in.id,
@@ -70,8 +74,20 @@ class CreateCheckInService:
                 no_deduction=no_deduction,
                 note=note,
             )
+            await self.__deduct_pto_for_entry_service.handle(
+                db_session,
+                user_id,
+                affect_entry,
+                self.__deduction_minutes(arrival),
+                day.year,
+            )
 
             return check_in
+
+    @staticmethod
+    def __deduction_minutes(arrival: time) -> int:
+        arrival_minutes = arrival.hour * 60 + arrival.minute
+        return max(arrival_minutes - WORK_START_MINUTES, 0)
 
 
 CreateCheckInServiceDep = Annotated[CreateCheckInService, Depends()]

@@ -5,10 +5,24 @@ from fastapi.testclient import TestClient
 from sqlmodel import select
 
 from app.database import DbSessionManager, PtoAffectEntryRecord, TimeOffEntryRecord
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_pto_bank_record,
+    make_profile_record,
+)
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
 FIRST_DAY = "2026-01-05"
+
+
+async def _seed_user(db_session_manager: DbSessionManager) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(
+                year=date.today().year, annual_balance=0, seniority_balance=0
+            )
+        )
 
 
 async def test_post_time_off_rejects_a_missing_token(db_client: TestClient) -> None:
@@ -35,6 +49,7 @@ async def test_post_time_off_stores_a_range_and_affect_rows(
     expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    await _seed_user(db_session_manager)
     payload: dict[str, str | int] = {
         "start_date": FIRST_DAY,
         "end_date": "2026-01-07",
@@ -95,6 +110,7 @@ async def test_post_time_off_stores_the_same_optional_note_on_every_affect_row(
             "end_date": "2026-01-06",
             "type": 0,
             "note": requested_note,
+            "no_deduction": 1,
         },
     )
 
@@ -115,13 +131,13 @@ async def test_post_time_off_reports_a_conflicting_shift(
     db_client.post(
         "/api/attendance/time-offs",
         headers=headers,
-        json={"start_date": FIRST_DAY, "type": 1},
+        json={"start_date": FIRST_DAY, "type": 1, "no_deduction": 1},
     )
 
     response = db_client.post(
         "/api/attendance/time-offs",
         headers=headers,
-        json={"start_date": FIRST_DAY, "type": 0},
+        json={"start_date": FIRST_DAY, "type": 0, "no_deduction": 1},
     )
 
     assert response.status_code == 409

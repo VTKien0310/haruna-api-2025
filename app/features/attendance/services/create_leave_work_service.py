@@ -15,6 +15,7 @@ from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
 )
 from app.features.pto.entities import PtoAffectEntryType
+from app.features.pto.services import DeductPtoForEntryServiceDep
 
 
 class CreateLeaveWorkService:
@@ -24,12 +25,14 @@ class CreateLeaveWorkService:
         find_leave_work_entries_reader: FindLeaveWorkEntriesByIdsAndDateReaderDep,
         create_leave_work_entry_writer: CreateLeaveWorkEntryWriterDep,
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
+        deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_leave_work_entries_reader = find_leave_work_entries_reader
         self.__create_leave_work_entry_writer = create_leave_work_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
+        self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
 
     async def handle(
@@ -64,7 +67,7 @@ class CreateLeaveWorkService:
             leave_work = await self.__create_leave_work_entry_writer.handle(
                 db_session, day, start, end
             )
-            await self.__create_pto_affect_entry_writer.handle(
+            affect_entry = await self.__create_pto_affect_entry_writer.handle(
                 db_session,
                 owner_id=user_id,
                 entry_id=leave_work.id,
@@ -72,8 +75,21 @@ class CreateLeaveWorkService:
                 no_deduction=no_deduction,
                 note=note,
             )
+            await self.__deduct_pto_for_entry_service.handle(
+                db_session,
+                user_id,
+                affect_entry,
+                self.__deduction_minutes(start, end),
+                day.year,
+            )
 
             return leave_work
+
+    @staticmethod
+    def __deduction_minutes(start: time, end: time) -> int:
+        start_minutes = start.hour * 60 + start.minute
+        end_minutes = end.hour * 60 + end.minute
+        return max(end_minutes - start_minutes, 0)
 
 
 CreateLeaveWorkServiceDep = Annotated[CreateLeaveWorkService, Depends()]

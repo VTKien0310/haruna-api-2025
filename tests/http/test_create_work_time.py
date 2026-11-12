@@ -6,10 +6,24 @@ from fastapi.testclient import TestClient
 from sqlmodel import select
 
 from app.database import DbSessionManager, PtoAffectEntryRecord, WorkTimeEntryRecord
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_pto_bank_record,
+    make_profile_record,
+)
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
 DAY = "2026-01-05"
+
+
+async def _seed_user(db_session_manager: DbSessionManager) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(
+                year=date.today().year, annual_balance=0, seniority_balance=0
+            )
+        )
 
 
 async def test_post_work_time_rejects_a_missing_token(
@@ -38,6 +52,7 @@ async def test_post_work_time_stores_entry_and_affect_row(
     expected_no_deduction: int,
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
+    await _seed_user(db_session_manager)
     payload: dict[str, str | int] = {
         "date": DAY,
         "time": 1,
@@ -100,6 +115,7 @@ async def test_post_work_time_stores_an_optional_affect_note(
             "type": 0,
             "duration": 30,
             "note": requested_note,
+            "no_deduction": 1,
         },
     )
 
@@ -117,7 +133,7 @@ async def test_post_work_time_rejects_the_same_type_in_the_same_shift(
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
     headers = {"Authorization": "Bearer token-1"}
-    payload = {"date": DAY, "time": 0, "type": 0, "duration": 60}
+    payload = {"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": 1}
     db_client.post("/api/attendance/work-times", headers=headers, json=payload)
 
     response = db_client.post(
@@ -139,7 +155,7 @@ async def test_post_work_time_rejects_durations_covering_the_shift(
     db_client.post(
         "/api/attendance/work-times",
         headers=headers,
-        json={"date": DAY, "time": 0, "type": 0, "duration": 200},
+        json={"date": DAY, "time": 0, "type": 0, "duration": 200, "no_deduction": 1},
     )
 
     response = db_client.post(
@@ -163,12 +179,12 @@ async def test_same_work_time_type_in_different_shifts_is_allowed(
     morning = db_client.post(
         "/api/attendance/work-times",
         headers=headers,
-        json={"date": DAY, "time": 0, "type": 0, "duration": 60},
+        json={"date": DAY, "time": 0, "type": 0, "duration": 60, "no_deduction": 1},
     )
     afternoon = db_client.post(
         "/api/attendance/work-times",
         headers=headers,
-        json={"date": DAY, "time": 1, "type": 0, "duration": 60},
+        json={"date": DAY, "time": 1, "type": 0, "duration": 60, "no_deduction": 1},
     )
 
     assert morning.status_code == afternoon.status_code == 200

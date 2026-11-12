@@ -10,11 +10,13 @@ from app.features.attendance.data import (
     FindTimeOffEntriesByIdsAndDatesReaderDep,
 )
 from app.features.attendance.entities import TimeOffEntry, TimeOffType
+from app.features.pto.constants import MINUTES_PER_WORK_DAY, SHIFT_MINUTES
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
 )
 from app.features.pto.entities import PtoAffectEntryType
+from app.features.pto.services import DeductPtoForEntryServiceDep
 
 
 class CreateTimeOffService:
@@ -24,12 +26,14 @@ class CreateTimeOffService:
         find_time_off_entries_reader: FindTimeOffEntriesByIdsAndDatesReaderDep,
         create_time_off_entry_writer: CreateTimeOffEntryWriterDep,
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
+        deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_time_off_entries_reader = find_time_off_entries_reader
         self.__create_time_off_entry_writer = create_time_off_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
+        self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
 
     async def handle(
@@ -79,7 +83,7 @@ class CreateTimeOffService:
                 entry = await self.__create_time_off_entry_writer.handle(
                     db_session, day, entry_type
                 )
-                await self.__create_pto_affect_entry_writer.handle(
+                affect_entry = await self.__create_pto_affect_entry_writer.handle(
                     db_session,
                     owner_id=user_id,
                     entry_id=entry.id,
@@ -87,9 +91,24 @@ class CreateTimeOffService:
                     no_deduction=no_deduction,
                     note=note,
                 )
+                await self.__deduct_pto_for_entry_service.handle(
+                    db_session,
+                    user_id,
+                    affect_entry,
+                    self.__deduction_minutes(entry_type),
+                    day.year,
+                )
                 entries.append(entry)
 
             return entries
+
+    @staticmethod
+    def __deduction_minutes(entry_type: TimeOffType) -> int:
+        return (
+            MINUTES_PER_WORK_DAY
+            if entry_type == TimeOffType.FULL_DAY
+            else SHIFT_MINUTES
+        )
 
 
 CreateTimeOffServiceDep = Annotated[CreateTimeOffService, Depends()]

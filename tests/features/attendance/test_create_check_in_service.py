@@ -9,6 +9,8 @@ from app.database import (
     CheckInEntryRecord,
     DbSessionManager,
     PtoAffectEntryRecord,
+    PtoBankRecord,
+    PtoTransactionRecord,
 )
 from app.features.attendance.data import (
     CreateCheckInEntryWriter,
@@ -20,7 +22,15 @@ from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReader,
 )
 from app.features.pto.entities import PtoAffectEntryType
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_pto_bank_record,
+    make_profile_record,
+)
+from tests.support.pto_services import (
+    NoopDeductPtoForEntryService,
+    make_deduct_pto_for_entry_service,
+)
 
 SUNDAY = date(2026, 1, 4)
 OTHER_USER_ID = str(uuid4())
@@ -32,6 +42,7 @@ def _service(db_session_manager: DbSessionManager) -> CreateCheckInService:
         FindCheckInEntryByIdsAndDateReader(),
         CreateCheckInEntryWriter(),
         CreatePtoAffectEntryWriter(),
+        NoopDeductPtoForEntryService(),
         db_session_manager,
     )
 
@@ -145,6 +156,7 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
         FindCheckInEntryByIdsAndDateReader(),
         CreateCheckInEntryWriter(),
         _FailingAffectWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
     )
 
@@ -157,3 +169,64 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
 
     assert check_ins == []
     assert affect_rows == []
+
+
+async def test_late_check_in_creates_a_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(year=2026, annual_balance=600, seniority_balance=0)
+        )
+
+    service = CreateCheckInService(
+        FindPtoAffectEntriesByOwnerAndTypeReader(),
+        FindCheckInEntryByIdsAndDateReader(),
+        CreateCheckInEntryWriter(),
+        CreatePtoAffectEntryWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
+        db_session_manager,
+    )
+    await service.handle(TEST_USER_ID, SUNDAY, time(9, 30))
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+        banks = (await session.exec(select(PtoBankRecord))).all()
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.cause == "check_in_entries_create"
+    assert transaction.value == 90
+    assert transaction.exceed_bank_value == 0
+    assert str(transaction.entry_id) == str(affect_rows[0].id)
+    assert str(transaction.pto_bank_id) == str(banks[0].id)
+    assert banks[0].annual_balance == 510
+
+
+async def test_on_time_check_in_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    check_in = await _service(db_session_manager).handle(
+        TEST_USER_ID, SUNDAY, time(7, 15)
+    )
+    assert check_in.time == time(7, 15)
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []
+
+
+async def test_check_in_with_no_deduction_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, SUNDAY, time(10, 0), no_deduction=1
+    )
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []

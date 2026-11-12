@@ -5,7 +5,13 @@ import pytest
 from sqlmodel import select
 
 from app.core import AppException
-from app.database import DbSessionManager, PtoAffectEntryRecord, TimeOffEntryRecord
+from app.database import (
+    DbSessionManager,
+    PtoAffectEntryRecord,
+    PtoBankRecord,
+    PtoTransactionRecord,
+    TimeOffEntryRecord,
+)
 from app.features.attendance.data import (
     CreateTimeOffEntryWriter,
     FindTimeOffEntriesByIdsAndDatesReader,
@@ -17,7 +23,15 @@ from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReader,
 )
 from app.features.pto.entities import PtoAffectEntryType
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_pto_bank_record,
+    make_profile_record,
+)
+from tests.support.pto_services import (
+    NoopDeductPtoForEntryService,
+    make_deduct_pto_for_entry_service,
+)
 
 FIRST_DAY = date(2026, 1, 5)
 OTHER_USER_ID = str(uuid4())
@@ -29,6 +43,7 @@ def _service(db_session_manager: DbSessionManager) -> CreateTimeOffService:
         FindTimeOffEntriesByIdsAndDatesReader(),
         CreateTimeOffEntryWriter(),
         CreatePtoAffectEntryWriter(),
+        NoopDeductPtoForEntryService(),
         db_session_manager,
     )
 
@@ -169,6 +184,7 @@ async def test_affect_insert_failure_rolls_back_time_off_entry(
         FindTimeOffEntriesByIdsAndDatesReader(),
         CreateTimeOffEntryWriter(),
         _FailingAffectWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
     )
 
@@ -181,3 +197,79 @@ async def test_affect_insert_failure_rolls_back_time_off_entry(
 
     assert records == []
     assert affect_rows == []
+
+
+async def test_full_day_time_off_creates_a_pto_transaction_per_day(
+    db_session_manager: DbSessionManager,
+) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(year=2026, annual_balance=1000, seniority_balance=0)
+        )
+
+    service = CreateTimeOffService(
+        FindPtoAffectEntriesByOwnerAndTypeReader(),
+        FindTimeOffEntriesByIdsAndDatesReader(),
+        CreateTimeOffEntryWriter(),
+        CreatePtoAffectEntryWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
+        db_session_manager,
+    )
+    entries = await service.handle(
+        TEST_USER_ID, FIRST_DAY, date(2026, 1, 6), TimeOffType.FULL_DAY
+    )
+    assert len(entries) == 2
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+        banks = (await session.exec(select(PtoBankRecord))).all()
+
+    assert len(transactions) == 2
+    assert {transaction.cause for transaction in transactions} == {
+        "time_off_entries_create"
+    }
+    assert {transaction.value for transaction in transactions} == {480}
+    assert {transaction.exceed_bank_value for transaction in transactions} == {0}
+    assert banks[0].annual_balance == 40
+
+
+async def test_half_day_time_off_deducts_one_shift(
+    db_session_manager: DbSessionManager,
+) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(year=2026, annual_balance=600, seniority_balance=0)
+        )
+
+    service = CreateTimeOffService(
+        FindPtoAffectEntriesByOwnerAndTypeReader(),
+        FindTimeOffEntriesByIdsAndDatesReader(),
+        CreateTimeOffEntryWriter(),
+        CreatePtoAffectEntryWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
+        db_session_manager,
+    )
+    await service.handle(TEST_USER_ID, FIRST_DAY, None, TimeOffType.MORNING)
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+        banks = (await session.exec(select(PtoBankRecord))).all()
+
+    assert len(transactions) == 1
+    assert transactions[0].value == 240
+    assert banks[0].annual_balance == 360
+
+
+async def test_time_off_with_no_deduction_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, FIRST_DAY, None, TimeOffType.FULL_DAY, no_deduction=1
+    )
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []
