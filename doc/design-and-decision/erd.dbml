@@ -108,6 +108,7 @@ Table public.pto_transactions {
   pto_bank_id uuid [not null]
   entry_id uuid [not null]
   cause "character varying" [not null]
+  type smallint [not null, default: 0, note: 'Only 0 (decrease in balance) or 1 (increase in balance) is allowed']
   value integer [not null]
   exceed_bank_value integer [not null, default: 0, note: 'Must be non-negative']
   created_at "timestamp with time zone" [not null, default: `now()`]

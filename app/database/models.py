@@ -154,6 +154,10 @@ class PtoTransactionRecord(SQLModel, table=True):
     pto_bank_id: UUID
     entry_id: UUID
     cause: str
+    type: int = Field(
+        default=0,
+        sa_column=Column(SmallInteger, nullable=False, server_default="0"),
+    )
     value: int
     exceed_bank_value: int = Field(
         default=0,

@@ -5,7 +5,11 @@ from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import PtoTransactionRecord
-from app.features.pto.entities import PtoTransaction, PtoTransactionCause
+from app.features.pto.entities import (
+    PtoTransaction,
+    PtoTransactionCause,
+    PtoTransactionType,
+)
 
 
 class CreatePtoTransactionWriter:
@@ -17,11 +21,13 @@ class CreatePtoTransactionWriter:
         cause: PtoTransactionCause,
         value: int,
         exceed_bank_value: int,
+        type: PtoTransactionType = PtoTransactionType.DECREASE,
     ) -> PtoTransaction:
         record = PtoTransactionRecord(
             pto_bank_id=UUID(pto_bank_id),
             entry_id=UUID(entry_id),
             cause=cause.value,
+            type=type.value,
             value=value,
             exceed_bank_value=exceed_bank_value,
         )

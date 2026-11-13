@@ -13,6 +13,7 @@ from app.features.pto.entities import (
     PtoBank,
     PtoTransaction,
     PtoTransactionCause,
+    PtoTransactionType,
 )
 from app.features.pto.services.get_or_create_pto_bank_service import (
     GetOrCreatePtoBankServiceDep,
@@ -54,6 +55,7 @@ class DeductPtoForEntryService:
             pto_bank_id=bank.id,
             entry_id=affect_entry.id,
             cause=PtoTransactionCause.from_entry_create(affect_entry.entry_type),
+            type=PtoTransactionType.DECREASE,
             value=deduction_minutes,
             exceed_bank_value=exceed_bank_value,
         )

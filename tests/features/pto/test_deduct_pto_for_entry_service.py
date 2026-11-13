@@ -11,7 +11,11 @@ from app.database import (
     PtoBankRecord,
     PtoTransactionRecord,
 )
-from app.features.pto.entities import PtoAffectEntry, PtoAffectEntryType
+from app.features.pto.entities import (
+    PtoAffectEntry,
+    PtoAffectEntryType,
+    PtoTransactionType,
+)
 from app.features.pto.services import DeductPtoForEntryService
 from tests.factories.database_records import (
     TEST_USER_ID,
@@ -119,6 +123,7 @@ async def test_deducts_extended_then_seniority_then_annual(
 
     assert transaction is not None
     assert transaction.cause == "time_off_entries_create"
+    assert transaction.type == PtoTransactionType.DECREASE
     assert transaction.value == 180
     assert transaction.exceed_bank_value == 0
     stored = await _get_bank(db_session_manager, UUID(transaction.pto_bank_id))

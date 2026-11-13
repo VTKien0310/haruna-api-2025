@@ -111,6 +111,7 @@ def insert_pto_transaction(
         "pto_bank_id": "pto-bank-1",
         "entry_id": "pto-affect-1",
         "cause": "annual",
+        "type": 0,
         "value": -1,
         "exceed_bank_value": 0,
         "created_at": "2026-01-01T00:00:00",

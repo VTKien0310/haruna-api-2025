@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 from app.database import PtoTransactionRecord
 from app.features.pto.entities.pto_affect_entry_entity import PtoAffectEntryType
@@ -18,12 +18,18 @@ class PtoTransactionCause(StrEnum):
         return cls(f"{entry_type.value}_create")
 
 
+class PtoTransactionType(IntEnum):
+    DECREASE = 0
+    INCREASE = 1
+
+
 @dataclass
 class PtoTransaction:
     id: str
     pto_bank_id: str
     entry_id: str
     cause: PtoTransactionCause
+    type: PtoTransactionType
     value: int
     exceed_bank_value: int
     created_at: datetime
@@ -35,6 +41,7 @@ class PtoTransaction:
             pto_bank_id=str(record.pto_bank_id),
             entry_id=str(record.entry_id),
             cause=PtoTransactionCause(record.cause),
+            type=PtoTransactionType(record.type),
             value=record.value,
             exceed_bank_value=record.exceed_bank_value,
             created_at=record.created_at,
@@ -47,6 +54,7 @@ class PtoTransaction:
             pto_bank_id=str(data["pto_bank_id"]),
             entry_id=str(data["entry_id"]),
             cause=PtoTransactionCause(str(data["cause"])),
+            type=PtoTransactionType(int(data.get("type", 0))),
             value=int(data["value"]),
             exceed_bank_value=int(data.get("exceed_bank_value", 0)),
             created_at=datetime.fromisoformat(str(data["created_at"])),
