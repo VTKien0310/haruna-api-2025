@@ -13,6 +13,16 @@ class PtoTransactionCause(StrEnum):
     WORK_TIME_CREATE = "work_time_entries_create"
     REMOTE_WORK_CREATE = "remote_work_entries_create"
 
+    CHECK_IN_UPDATE = "check_in_entries_update"
+    TIME_OFF_UPDATE = "time_off_entries_update"
+    LEAVE_WORK_UPDATE = "leave_work_entries_update"
+    WORK_TIME_UPDATE = "work_time_entries_update"
+    REMOTE_WORK_UPDATE = "remote_work_entries_update"
+
+    @classmethod
+    def from_entry_update(cls, entry_type: PtoAffectEntryType) -> PtoTransactionCause:
+        return cls(f"{entry_type.value}_update")
+
     @classmethod
     def from_entry_create(cls, entry_type: PtoAffectEntryType) -> PtoTransactionCause:
         return cls(f"{entry_type.value}_create")

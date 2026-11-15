@@ -1,4 +1,7 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Path, status
 
 from app.core import error_response
 from app.features.attendance.entities import (
@@ -14,6 +17,11 @@ from app.features.attendance.requests import (
     CreateRemoteWorkRequest,
     CreateTimeOffRequest,
     CreateWorkTimeRequest,
+    UpdateCheckInRequest,
+    UpdateLeaveWorkRequest,
+    UpdateRemoteWorkRequest,
+    UpdateTimeOffRequest,
+    UpdateWorkTimeRequest,
 )
 from app.features.attendance.services import (
     CreateCheckInServiceDep,
@@ -21,6 +29,11 @@ from app.features.attendance.services import (
     CreateRemoteWorkServiceDep,
     CreateTimeOffServiceDep,
     CreateWorkTimeServiceDep,
+    UpdateCheckInServiceDep,
+    UpdateLeaveWorkServiceDep,
+    UpdateRemoteWorkServiceDep,
+    UpdateTimeOffServiceDep,
+    UpdateWorkTimeServiceDep,
 )
 from app.features.authentication.guards import (
     AuthenticatedGuardDep,
@@ -243,3 +256,206 @@ async def create_leave_work(
         request.no_deduction,
         request.note,
     )
+
+
+@router.patch(
+    "/check-ins/{entry_id}",
+    summary="PATCH /api/attendance/check-ins/{entry_id}",
+    description=(
+        "Update one check-ins entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
+        "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
+        "Date changes must stay in the original year; past-year entries cannot be edited. "
+        "Time-off updates edit one date. Clock seconds are dropped. "
+        "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
+        "up to their original limits. No penalty change creates no transaction. "
+        "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
+        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "(check_in_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
+    ),
+    responses={
+        404: error_response(
+            "Entry or required bank/profile not found.",
+            "attendance_entry_not_found",
+            "pto_bank_not_found",
+            "profile_not_found",
+        ),
+        409: error_response(
+            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "past_year_entry_not_editable",
+            "pto_adjustment_conflict",
+            "check_in_already_exists",
+        ),
+    },
+)
+async def update_check_in(
+    entry_id: Annotated[
+        UUID, Path(description="UUID of the attendance entry to update.")
+    ],
+    request: UpdateCheckInRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateCheckInServiceDep,
+) -> CheckInEntry:
+    return await service.handle(user.id, entry_id, request)
+
+
+@router.patch(
+    "/time-offs/{entry_id}",
+    summary="PATCH /api/attendance/time-offs/{entry_id}",
+    description=(
+        "Update one time-offs entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
+        "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
+        "Date changes must stay in the original year; past-year entries cannot be edited. "
+        "Time-off updates edit one date. Clock seconds are dropped. "
+        "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
+        "up to their original limits. No penalty change creates no transaction. "
+        "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
+        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "(time_off_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
+    ),
+    responses={
+        404: error_response(
+            "Entry or required bank/profile not found.",
+            "attendance_entry_not_found",
+            "pto_bank_not_found",
+            "profile_not_found",
+        ),
+        409: error_response(
+            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "past_year_entry_not_editable",
+            "pto_adjustment_conflict",
+            "time_off_already_exists",
+        ),
+    },
+)
+async def update_time_off(
+    entry_id: Annotated[
+        UUID, Path(description="UUID of the attendance entry to update.")
+    ],
+    request: UpdateTimeOffRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateTimeOffServiceDep,
+) -> TimeOffEntry:
+    return await service.handle(user.id, entry_id, request)
+
+
+@router.patch(
+    "/remote-works/{entry_id}",
+    summary="PATCH /api/attendance/remote-works/{entry_id}",
+    description=(
+        "Update one remote-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
+        "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
+        "Date changes must stay in the original year; past-year entries cannot be edited. "
+        "Time-off updates edit one date. Clock seconds are dropped. "
+        "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
+        "up to their original limits. No penalty change creates no transaction. "
+        "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found. "
+        "409: past_year_entry_not_editable or a creation-style conflict "
+        "(remote_work_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
+    ),
+    responses={
+        404: error_response(
+            "Entry or required bank/profile not found.",
+            "attendance_entry_not_found",
+        ),
+        409: error_response(
+            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "past_year_entry_not_editable",
+            "remote_work_already_exists",
+        ),
+    },
+)
+async def update_remote_work(
+    entry_id: Annotated[
+        UUID, Path(description="UUID of the attendance entry to update.")
+    ],
+    request: UpdateRemoteWorkRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateRemoteWorkServiceDep,
+) -> RemoteWorkEntry:
+    return await service.handle(user.id, entry_id, request)
+
+
+@router.patch(
+    "/work-times/{entry_id}",
+    summary="PATCH /api/attendance/work-times/{entry_id}",
+    description=(
+        "Update one work-times entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
+        "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
+        "Date changes must stay in the original year; past-year entries cannot be edited. "
+        "Time-off updates edit one date. Clock seconds are dropped. "
+        "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
+        "up to their original limits. No penalty change creates no transaction. "
+        "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
+        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "(work_time_already_exists, work_time_overlaps). 422: validation_error for invalid body, UUID, merged constraints, or year change."
+    ),
+    responses={
+        404: error_response(
+            "Entry or required bank/profile not found.",
+            "attendance_entry_not_found",
+            "pto_bank_not_found",
+            "profile_not_found",
+        ),
+        409: error_response(
+            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "past_year_entry_not_editable",
+            "pto_adjustment_conflict",
+            "work_time_already_exists",
+            "work_time_overlaps",
+        ),
+    },
+)
+async def update_work_time(
+    entry_id: Annotated[
+        UUID, Path(description="UUID of the attendance entry to update.")
+    ],
+    request: UpdateWorkTimeRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateWorkTimeServiceDep,
+) -> WorkTimeEntry:
+    return await service.handle(user.id, entry_id, request)
+
+
+@router.patch(
+    "/leave-works/{entry_id}",
+    summary="PATCH /api/attendance/leave-works/{entry_id}",
+    description=(
+        "Update one leave-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
+        "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
+        "Date changes must stay in the original year; past-year entries cannot be edited. "
+        "Time-off updates edit one date. Clock seconds are dropped. "
+        "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
+        "up to their original limits. No penalty change creates no transaction. "
+        "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
+        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "(leave_work_overlaps). 422: validation_error for invalid body, UUID, merged constraints, or year change."
+    ),
+    responses={
+        404: error_response(
+            "Entry or required bank/profile not found.",
+            "attendance_entry_not_found",
+            "pto_bank_not_found",
+            "profile_not_found",
+        ),
+        409: error_response(
+            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "past_year_entry_not_editable",
+            "pto_adjustment_conflict",
+            "leave_work_overlaps",
+        ),
+    },
+)
+async def update_leave_work(
+    entry_id: Annotated[
+        UUID, Path(description="UUID of the attendance entry to update.")
+    ],
+    request: UpdateLeaveWorkRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateLeaveWorkServiceDep,
+) -> LeaveWorkEntry:
+    return await service.handle(user.id, entry_id, request)

@@ -10,6 +10,7 @@ from app.features.attendance.data import (
     FindLeaveWorkEntriesByIdsAndDateReaderDep,
 )
 from app.features.attendance.entities import LeaveWorkEntry
+from app.features.attendance.services import CalculateLeaveWorkPenaltyServiceDep
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
@@ -27,6 +28,7 @@ class CreateLeaveWorkService:
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
         deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
+        calculate_penalty_service: CalculateLeaveWorkPenaltyServiceDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_leave_work_entries_reader = find_leave_work_entries_reader
@@ -34,6 +36,7 @@ class CreateLeaveWorkService:
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
+        self.__calculate_penalty_service = calculate_penalty_service
 
     async def handle(
         self,
@@ -79,17 +82,11 @@ class CreateLeaveWorkService:
                 db_session,
                 user_id,
                 affect_entry,
-                self.__deduction_minutes(start, end),
+                self.__calculate_penalty_service.handle(start, end),
                 day.year,
             )
 
             return leave_work
-
-    @staticmethod
-    def __deduction_minutes(start: time, end: time) -> int:
-        start_minutes = start.hour * 60 + start.minute
-        end_minutes = end.hour * 60 + end.minute
-        return max(end_minutes - start_minutes, 0)
 
 
 CreateLeaveWorkServiceDep = Annotated[CreateLeaveWorkService, Depends()]

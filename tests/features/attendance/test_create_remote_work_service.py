@@ -19,6 +19,7 @@ from app.features.attendance.data import (
 )
 from app.features.attendance.entities import RemoteWorkType, TimeOffType
 from app.features.attendance.services import (
+    CalculateTimeOffPenaltyService,
     CreateRemoteWorkService,
     CreateTimeOffService,
 )
@@ -135,6 +136,7 @@ async def test_time_off_does_not_conflict_with_remote_work(
         CreatePtoAffectEntryWriter(),
         NoopDeductPtoForEntryService(),
         db_session_manager,
+        calculate_penalty_service=CalculateTimeOffPenaltyService(),
     )
     await time_off_service.handle(TEST_USER_ID, DAY, None, TimeOffType.FULL_DAY)
 

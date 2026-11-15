@@ -17,7 +17,10 @@ from app.features.attendance.data import (
     FindTimeOffEntriesByIdsAndDatesReader,
 )
 from app.features.attendance.entities import TimeOffType
-from app.features.attendance.services import CreateTimeOffService
+from app.features.attendance.services import (
+    CalculateTimeOffPenaltyService,
+    CreateTimeOffService,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriter,
     FindPtoAffectEntriesByOwnerAndTypeReader,
@@ -25,8 +28,8 @@ from app.features.pto.data import (
 from app.features.pto.entities import PtoAffectEntryType
 from tests.factories.database_records import (
     TEST_USER_ID,
-    make_pto_bank_record,
     make_profile_record,
+    make_pto_bank_record,
 )
 from tests.support.pto_services import (
     NoopDeductPtoForEntryService,
@@ -45,6 +48,7 @@ def _service(db_session_manager: DbSessionManager) -> CreateTimeOffService:
         CreatePtoAffectEntryWriter(),
         NoopDeductPtoForEntryService(),
         db_session_manager,
+        calculate_penalty_service=CalculateTimeOffPenaltyService(),
     )
 
 
@@ -186,6 +190,7 @@ async def test_affect_insert_failure_rolls_back_time_off_entry(
         _FailingAffectWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateTimeOffPenaltyService(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -215,6 +220,7 @@ async def test_full_day_time_off_creates_a_pto_transaction_per_day(
         CreatePtoAffectEntryWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateTimeOffPenaltyService(),
     )
     entries = await service.handle(
         TEST_USER_ID, FIRST_DAY, date(2026, 1, 6), TimeOffType.FULL_DAY
@@ -250,6 +256,7 @@ async def test_half_day_time_off_deducts_one_shift(
         CreatePtoAffectEntryWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateTimeOffPenaltyService(),
     )
     await service.handle(TEST_USER_ID, FIRST_DAY, None, TimeOffType.MORNING)
 

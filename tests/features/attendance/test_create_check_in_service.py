@@ -16,7 +16,10 @@ from app.features.attendance.data import (
     CreateCheckInEntryWriter,
     FindCheckInEntryByIdsAndDateReader,
 )
-from app.features.attendance.services import CreateCheckInService
+from app.features.attendance.services import (
+    CalculateCheckInPenaltyService,
+    CreateCheckInService,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriter,
     FindPtoAffectEntriesByOwnerAndTypeReader,
@@ -24,8 +27,8 @@ from app.features.pto.data import (
 from app.features.pto.entities import PtoAffectEntryType
 from tests.factories.database_records import (
     TEST_USER_ID,
-    make_pto_bank_record,
     make_profile_record,
+    make_pto_bank_record,
 )
 from tests.support.pto_services import (
     NoopDeductPtoForEntryService,
@@ -44,6 +47,7 @@ def _service(db_session_manager: DbSessionManager) -> CreateCheckInService:
         CreatePtoAffectEntryWriter(),
         NoopDeductPtoForEntryService(),
         db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
     )
 
 
@@ -158,6 +162,7 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
         _FailingAffectWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -187,6 +192,7 @@ async def test_late_check_in_creates_a_pto_transaction(
         CreatePtoAffectEntryWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
     )
     await service.handle(TEST_USER_ID, SUNDAY, time(9, 30))
 

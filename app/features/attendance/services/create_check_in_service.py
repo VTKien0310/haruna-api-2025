@@ -5,12 +5,12 @@ from fastapi import Depends, status
 
 from app.core import AppException
 from app.database import DbSessionManagerDep
-from app.features.attendance.constants import WORK_START_MINUTES
 from app.features.attendance.data import (
     CreateCheckInEntryWriterDep,
     FindCheckInEntryByIdsAndDateReaderDep,
 )
 from app.features.attendance.entities import CheckInEntry
+from app.features.attendance.services import CalculateCheckInPenaltyServiceDep
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
@@ -28,6 +28,7 @@ class CreateCheckInService:
         create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
         deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
+        calculate_penalty_service: CalculateCheckInPenaltyServiceDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_check_in_entry_reader = find_check_in_entry_reader
@@ -35,6 +36,7 @@ class CreateCheckInService:
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
         self.__db_session_manager = db_session_manager
+        self.__calculate_penalty_service = calculate_penalty_service
 
     async def handle(
         self,
@@ -78,16 +80,11 @@ class CreateCheckInService:
                 db_session,
                 user_id,
                 affect_entry,
-                self.__deduction_minutes(arrival),
+                self.__calculate_penalty_service.handle(arrival),
                 day.year,
             )
 
             return check_in
-
-    @staticmethod
-    def __deduction_minutes(arrival: time) -> int:
-        arrival_minutes = arrival.hour * 60 + arrival.minute
-        return max(arrival_minutes - WORK_START_MINUTES, 0)
 
 
 CreateCheckInServiceDep = Annotated[CreateCheckInService, Depends()]

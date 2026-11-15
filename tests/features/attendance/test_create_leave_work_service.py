@@ -16,7 +16,10 @@ from app.features.attendance.data import (
     CreateLeaveWorkEntryWriter,
     FindLeaveWorkEntriesByIdsAndDateReader,
 )
-from app.features.attendance.services import CreateLeaveWorkService
+from app.features.attendance.services import (
+    CalculateLeaveWorkPenaltyService,
+    CreateLeaveWorkService,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriter,
     FindPtoAffectEntriesByOwnerAndTypeReader,
@@ -24,8 +27,8 @@ from app.features.pto.data import (
 from app.features.pto.entities import PtoAffectEntryType
 from tests.factories.database_records import (
     TEST_USER_ID,
-    make_pto_bank_record,
     make_profile_record,
+    make_pto_bank_record,
 )
 from tests.support.pto_services import (
     NoopDeductPtoForEntryService,
@@ -44,6 +47,7 @@ def _service(db_session_manager: DbSessionManager) -> CreateLeaveWorkService:
         CreatePtoAffectEntryWriter(),
         NoopDeductPtoForEntryService(),
         db_session_manager,
+        calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
     )
 
 
@@ -141,6 +145,7 @@ async def test_affect_insert_failure_rolls_back_leave_work_entry(
         _FailingAffectWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -170,6 +175,7 @@ async def test_leave_work_creates_a_pto_transaction_for_the_interval(
         CreatePtoAffectEntryWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
     )
     leave_work = await service.handle(TEST_USER_ID, DAY, time(9, 0), time(10, 30))
     assert leave_work.end == time(10, 30)

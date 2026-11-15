@@ -12,6 +12,7 @@ from app.features.pto.data import (
 )
 from app.features.pto.entities import PtoBank
 from app.features.pto.services import (
+    CalculatePtoBalanceDeductionService,
     DeductPtoForEntryService,
     GetOrCreatePtoBankService,
 )
@@ -53,6 +54,7 @@ def make_deduct_pto_for_entry_service(
         _StaticGetOrCreatePtoBankService(db_session_manager),  # type: ignore[arg-type]
         CreatePtoTransactionWriter(),
         UpdatePtoBankBalancesWriter(),
+        calculate_balance_deduction_service=CalculatePtoBalanceDeductionService(),
     )
 
 
@@ -69,4 +71,5 @@ def make_full_deduct_pto_for_entry_service(
         ),
         CreatePtoTransactionWriter(),
         UpdatePtoBankBalancesWriter(),
+        calculate_balance_deduction_service=CalculatePtoBalanceDeductionService(),
     )

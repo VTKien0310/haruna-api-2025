@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import Annotated
 
 from fastapi import Depends
@@ -10,11 +9,11 @@ from app.features.pto.data import (
 )
 from app.features.pto.entities import (
     PtoAffectEntry,
-    PtoBank,
     PtoTransaction,
     PtoTransactionCause,
     PtoTransactionType,
 )
+from app.features.pto.services import CalculatePtoBalanceDeductionServiceDep
 from app.features.pto.services.get_or_create_pto_bank_service import (
     GetOrCreatePtoBankServiceDep,
 )
@@ -26,10 +25,12 @@ class DeductPtoForEntryService:
         get_or_create_pto_bank_service: GetOrCreatePtoBankServiceDep,
         create_pto_transaction_writer: CreatePtoTransactionWriterDep,
         update_pto_bank_balances_writer: UpdatePtoBankBalancesWriterDep,
+        calculate_balance_deduction_service: CalculatePtoBalanceDeductionServiceDep,
     ) -> None:
         self.__get_or_create_pto_bank_service = get_or_create_pto_bank_service
         self.__create_pto_transaction_writer = create_pto_transaction_writer
         self.__update_pto_bank_balances_writer = update_pto_bank_balances_writer
+        self.__calculate_balance_deduction_service = calculate_balance_deduction_service
 
     async def handle(
         self,
@@ -47,7 +48,9 @@ class DeductPtoForEntryService:
         bank = await self.__get_or_create_pto_bank_service.handle_with_session(
             db_session, user_id, year
         )
-        deducted_bank, exceed_bank_value = self.__deduct(bank, deduction_minutes)
+        deducted_bank, exceed_bank_value = (
+            self.__calculate_balance_deduction_service.handle(bank, deduction_minutes)
+        )
         await self.__update_pto_bank_balances_writer.handle(db_session, deducted_bank)
 
         return await self.__create_pto_transaction_writer.handle(
@@ -59,27 +62,6 @@ class DeductPtoForEntryService:
             value=deduction_minutes,
             exceed_bank_value=exceed_bank_value,
         )
-
-    @staticmethod
-    def __deduct(bank: PtoBank, deduction_minutes: int) -> tuple[PtoBank, int]:
-        remaining = deduction_minutes
-
-        extended_balance = max(bank.extended_balance - remaining, 0)
-        remaining -= bank.extended_balance - extended_balance
-
-        seniority_balance = max(bank.seniority_balance - remaining, 0)
-        remaining -= bank.seniority_balance - seniority_balance
-
-        annual_balance = max(bank.annual_balance - remaining, 0)
-        remaining -= bank.annual_balance - annual_balance
-
-        deducted_bank = replace(
-            bank,
-            extended_balance=extended_balance,
-            seniority_balance=seniority_balance,
-            annual_balance=annual_balance,
-        )
-        return deducted_bank, remaining
 
 
 DeductPtoForEntryServiceDep = Annotated[DeductPtoForEntryService, Depends()]
