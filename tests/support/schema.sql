@@ -47,6 +47,8 @@ CREATE TABLE pto_affect_entries (
     entry_id TEXT,
     entry_type TEXT,
     no_deduction INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT 'Untitled',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 );
@@ -56,7 +58,9 @@ CREATE TABLE pto_transactions (
     pto_bank_id TEXT NOT NULL REFERENCES pto_banks (id),
     entry_id TEXT NOT NULL REFERENCES pto_affect_entries (id),
     cause TEXT NOT NULL,
+    type INTEGER NOT NULL DEFAULT 0,
     value INTEGER NOT NULL,
+    exceed_bank_value INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 );
 
@@ -88,10 +92,13 @@ CREATE TABLE time_off_entries (
 CREATE TABLE work_time_entries (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) NOT NULL,
     date TEXT NOT NULL,
-    type INTEGER NOT NULL
+    type INTEGER NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 0,
+    time INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE workday_exceptions (
+    title TEXT NOT NULL DEFAULT 'Untitled',
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) NOT NULL,
     type INTEGER NOT NULL,
     date TEXT NOT NULL,

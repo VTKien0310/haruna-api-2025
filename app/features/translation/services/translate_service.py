@@ -1,6 +1,6 @@
 import json
 from app.core import AppException, settings
-from app.features.auth.entities import User
+from app.features.authentication.entities import User
 from app.features.translation.data import (
     CreateTranslationHistoryWriterDep,
     DeleteOldestTranslationHistoriesWriterDep,

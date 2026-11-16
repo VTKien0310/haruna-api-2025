@@ -1,3 +1,6 @@
+from app.features.attendance.data import LockAttendanceCalendarWriter
+from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
+from app.features.attendance.services import ValidateAttendanceWorkdayService
 from datetime import date, time
 from uuid import UUID, uuid4
 
@@ -9,20 +12,33 @@ from app.database import (
     CheckInEntryRecord,
     DbSessionManager,
     PtoAffectEntryRecord,
+    PtoBankRecord,
+    PtoTransactionRecord,
 )
 from app.features.attendance.data import (
     CreateCheckInEntryWriter,
     FindCheckInEntryByIdsAndDateReader,
 )
-from app.features.attendance.services import CreateCheckInService
+from app.features.attendance.services import (
+    CalculateCheckInPenaltyService,
+    CreateCheckInService,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriter,
     FindPtoAffectEntriesByOwnerAndTypeReader,
 )
 from app.features.pto.entities import PtoAffectEntryType
-from tests.factories.database_records import TEST_USER_ID
+from tests.factories.database_records import (
+    TEST_USER_ID,
+    make_profile_record,
+    make_pto_bank_record,
+)
+from tests.support.pto_services import (
+    NoopDeductPtoForEntryService,
+    make_deduct_pto_for_entry_service,
+)
 
-SUNDAY = date(2026, 1, 4)
+MONDAY = date(2026, 1, 5)
 OTHER_USER_ID = str(uuid4())
 
 
@@ -32,7 +48,13 @@ def _service(db_session_manager: DbSessionManager) -> CreateCheckInService:
         FindCheckInEntryByIdsAndDateReader(),
         CreateCheckInEntryWriter(),
         CreatePtoAffectEntryWriter(),
+        NoopDeductPtoForEntryService(),
         db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
 
@@ -45,10 +67,10 @@ async def test_drops_seconds_from_the_arrival(
     db_session_manager: DbSessionManager,
 ) -> None:
     check_in = await _service(db_session_manager).handle(
-        TEST_USER_ID, SUNDAY, time(9, 0, 59)
+        TEST_USER_ID, MONDAY, time(9, 0, 59)
     )
 
-    assert check_in.date == SUNDAY
+    assert check_in.date == MONDAY
     assert check_in.time == time(9, 0)
 
 
@@ -56,7 +78,7 @@ async def test_stores_a_time_given_without_seconds(
     db_session_manager: DbSessionManager,
 ) -> None:
     check_in = await _service(db_session_manager).handle(
-        TEST_USER_ID, SUNDAY, time(7, 15)
+        TEST_USER_ID, MONDAY, time(7, 15)
     )
 
     assert check_in.time == time(7, 15, 0)
@@ -66,7 +88,7 @@ async def test_stores_the_check_in_and_the_affect_row(
     db_session_manager: DbSessionManager,
 ) -> None:
     check_in = await _service(db_session_manager).handle(
-        TEST_USER_ID, SUNDAY, time(9, 0)
+        TEST_USER_ID, MONDAY, time(9, 0)
     )
 
     async with db_session_manager.session() as session:
@@ -74,7 +96,7 @@ async def test_stores_the_check_in_and_the_affect_row(
         affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
 
     assert stored_check_in is not None
-    assert stored_check_in.date == SUNDAY
+    assert stored_check_in.date == MONDAY
     assert stored_check_in.time == time(9, 0)
 
     assert len(affect_rows) == 1
@@ -83,15 +105,30 @@ async def test_stores_the_check_in_and_the_affect_row(
     assert str(affect_row.entry_id) == check_in.id
     assert affect_row.entry_type == PtoAffectEntryType.CHECK_IN.value
     assert affect_row.no_deduction == 0
+    assert affect_row.note == ""
+
+
+async def test_stores_an_optional_affect_note(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, MONDAY, time(9, 0), note="arrived after the train"
+    )
+
+    async with db_session_manager.session() as session:
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+
+    assert len(affect_rows) == 1
+    assert affect_rows[0].note == "arrived after the train"
 
 
 async def test_a_second_check_in_on_the_same_date_is_rejected(
     db_session_manager: DbSessionManager,
 ) -> None:
-    await _service(db_session_manager).handle(TEST_USER_ID, SUNDAY, time(9, 0))
+    await _service(db_session_manager).handle(TEST_USER_ID, MONDAY, time(9, 0))
 
     with pytest.raises(AppException) as exc_info:
-        await _service(db_session_manager).handle(TEST_USER_ID, SUNDAY, time(10, 30))
+        await _service(db_session_manager).handle(TEST_USER_ID, MONDAY, time(10, 30))
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.code == "check_in_already_exists"
@@ -106,10 +143,10 @@ async def test_a_second_check_in_on_the_same_date_is_rejected(
 async def test_another_caller_can_check_in_on_the_same_date(
     db_session_manager: DbSessionManager,
 ) -> None:
-    await _service(db_session_manager).handle(TEST_USER_ID, SUNDAY, time(9, 0))
+    await _service(db_session_manager).handle(TEST_USER_ID, MONDAY, time(9, 0))
 
     check_in = await _service(db_session_manager).handle(
-        OTHER_USER_ID, SUNDAY, time(8, 45)
+        OTHER_USER_ID, MONDAY, time(8, 45)
     )
 
     assert check_in.time == time(8, 45)
@@ -130,11 +167,17 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
         FindCheckInEntryByIdsAndDateReader(),
         CreateCheckInEntryWriter(),
         _FailingAffectWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
-        await service.handle(TEST_USER_ID, SUNDAY, time(9, 0))
+        await service.handle(TEST_USER_ID, MONDAY, time(9, 0))
 
     async with db_session_manager.session() as session:
         check_ins = (await session.exec(select(CheckInEntryRecord))).all()
@@ -142,3 +185,69 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
 
     assert check_ins == []
     assert affect_rows == []
+
+
+async def test_late_check_in_creates_a_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    async with db_session_manager.transaction() as session:
+        session.add(make_profile_record())
+        session.add(
+            make_pto_bank_record(year=2026, annual_balance=600, seniority_balance=0)
+        )
+
+    service = CreateCheckInService(
+        FindPtoAffectEntriesByOwnerAndTypeReader(),
+        FindCheckInEntryByIdsAndDateReader(),
+        CreateCheckInEntryWriter(),
+        CreatePtoAffectEntryWriter(),
+        make_deduct_pto_for_entry_service(db_session_manager),
+        db_session_manager,
+        calculate_penalty_service=CalculateCheckInPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
+    )
+    await service.handle(TEST_USER_ID, MONDAY, time(9, 30))
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+        affect_rows = (await session.exec(select(PtoAffectEntryRecord))).all()
+        banks = (await session.exec(select(PtoBankRecord))).all()
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.cause == "check_in_entries_create"
+    assert transaction.value == 90
+    assert transaction.exceed_bank_value == 0
+    assert str(transaction.entry_id) == str(affect_rows[0].id)
+    assert str(transaction.pto_bank_id) == str(banks[0].id)
+    assert banks[0].annual_balance == 510
+
+
+async def test_on_time_check_in_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    check_in = await _service(db_session_manager).handle(
+        TEST_USER_ID, MONDAY, time(7, 15)
+    )
+    assert check_in.time == time(7, 15)
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []
+
+
+async def test_check_in_with_no_deduction_creates_no_pto_transaction(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _service(db_session_manager).handle(
+        TEST_USER_ID, MONDAY, time(10, 0), no_deduction=1
+    )
+
+    async with db_session_manager.session() as session:
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert transactions == []

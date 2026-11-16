@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import date, time
 
+from app.database import LeaveWorkEntryRecord
+
 
 @dataclass
 class LeaveWorkEntry:
@@ -8,6 +10,15 @@ class LeaveWorkEntry:
     date: date
     start: time
     end: time
+
+    @classmethod
+    def from_db_record(cls, record: LeaveWorkEntryRecord) -> LeaveWorkEntry:
+        return cls(
+            id=str(record.id),
+            date=record.date,
+            start=record.start,
+            end=record.end,
+        )
 
     @classmethod
     def from_spb_data(cls, data: dict[str, str | int]) -> LeaveWorkEntry:

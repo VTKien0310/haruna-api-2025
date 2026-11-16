@@ -8,6 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.database import PtoBankRecord
 from app.features.pto.entities import PtoBank
 
+from .lock_pto_owner_writer import LockPtoOwnerWriter
+
 
 class FindPtoBankByOwnerAndYearReader:
     async def handle(
@@ -16,6 +18,7 @@ class FindPtoBankByOwnerAndYearReader:
         owner_id: str,
         year: int,
     ) -> PtoBank | None:
+        await LockPtoOwnerWriter().handle(db_session, owner_id)
         statement = (
             select(PtoBankRecord)
             .where(PtoBankRecord.owner_id == UUID(owner_id))

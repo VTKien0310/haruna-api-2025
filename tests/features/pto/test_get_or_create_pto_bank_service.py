@@ -76,6 +76,24 @@ async def test_creates_current_year_bank_with_default_balances(
         bank.seniority_balance
         == min(date.today().year - 2020, 8) * MINUTES_PER_WORK_DAY
     )
+    assert bank.original_annual_balance == bank.annual_balance
+    assert bank.original_extended_balance == bank.extended_balance
+    assert bank.original_seniority_balance == bank.seniority_balance
+    stored = await _get_bank(db_session_manager, UUID(bank.id))
+    assert stored is not None
+    assert (
+        stored.original_annual_balance == stored.annual_balance == bank.annual_balance
+    )
+    assert (
+        stored.original_extended_balance
+        == stored.extended_balance
+        == bank.extended_balance
+    )
+    assert (
+        stored.original_seniority_balance
+        == stored.seniority_balance
+        == bank.seniority_balance
+    )
 
 
 async def test_creates_bank_with_extended_balance_from_last_year(
@@ -90,12 +108,18 @@ async def test_creates_bank_with_extended_balance_from_last_year(
             year=current_year - 1,
             annual_balance=100,
             seniority_balance=50,
+            original_annual_balance=900,
+            original_seniority_balance=800,
         ),
     )
 
     bank = await _service(db_session_manager).handle(TEST_USER_ID, current_year)
 
     assert bank.extended_balance == 150
+    assert bank.original_extended_balance == bank.extended_balance
+    stored = await _get_bank(db_session_manager, UUID(bank.id))
+    assert stored is not None
+    assert stored.extended_balance == stored.original_extended_balance == 150
 
 
 async def test_creates_bank_with_seniority_capped_at_eight_days(
@@ -109,6 +133,10 @@ async def test_creates_bank_with_seniority_capped_at_eight_days(
     bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
 
     assert bank.seniority_balance == 8 * MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == bank.seniority_balance
+    stored = await _get_bank(db_session_manager, UUID(bank.id))
+    assert stored is not None
+    assert stored.original_seniority_balance == stored.seniority_balance
 
 
 async def test_creating_past_or_future_year_is_not_allowed(
@@ -146,6 +174,9 @@ async def test_viewing_past_year_returns_the_record_unchanged(
             year=date.today().year - 1,
             seniority_balance=0,
             updated_at=unchanged_timestamp,
+            original_annual_balance=111,
+            original_extended_balance=222,
+            original_seniority_balance=333,
         ),
     )
 
@@ -155,9 +186,19 @@ async def test_viewing_past_year_returns_the_record_unchanged(
 
     assert bank.id == str(TEST_PTO_BANK_ID)
     assert bank.seniority_balance == 0
+    assert (
+        bank.original_annual_balance,
+        bank.original_extended_balance,
+        bank.original_seniority_balance,
+    ) == (111, 222, 333)
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
     assert stored.seniority_balance == 0
+    assert (
+        stored.original_annual_balance,
+        stored.original_extended_balance,
+        stored.original_seniority_balance,
+    ) == (111, 222, 333)
     assert stored.updated_at == unchanged_timestamp
 
 
@@ -171,15 +212,28 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
             id=TEST_PTO_BANK_ID,
             year=date.today().year,
             seniority_balance=MINUTES_PER_WORK_DAY,
+            original_annual_balance=444,
+            original_extended_balance=555,
+            original_seniority_balance=666,
         ),
     )
 
     bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
 
     assert bank.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert (
+        bank.original_annual_balance,
+        bank.original_extended_balance,
+        bank.original_seniority_balance,
+    ) == (444, 555, 666)
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
     assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert (
+        stored.original_annual_balance,
+        stored.original_extended_balance,
+        stored.original_seniority_balance,
+    ) == (444, 555, 666)
 
 
 async def test_viewing_current_year_does_not_accrue_before_the_anniversary(

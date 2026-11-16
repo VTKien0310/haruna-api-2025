@@ -92,9 +92,11 @@ def insert_pto_affect_entry(
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "id": "pto-affect-1",
+        "title": "Untitled",
         "entry_id": "check-in-1",
         "entry_type": "check_in_entries",
         "no_deduction": 0,
+        "note": "",
         "created_at": "2026-01-01T00:00:00",
         "updated_at": "2026-01-01T00:00:00",
     }
@@ -110,7 +112,9 @@ def insert_pto_transaction(
         "pto_bank_id": "pto-bank-1",
         "entry_id": "pto-affect-1",
         "cause": "annual",
+        "type": 0,
         "value": -1,
+        "exceed_bank_value": 0,
         "created_at": "2026-01-01T00:00:00",
     }
     row.update(overrides)
@@ -173,6 +177,8 @@ def insert_work_time_entry(
         "id": "work-time-1",
         "date": "2026-01-08",
         "type": 0,
+        "duration": 0,
+        "time": 0,
     }
     row.update(overrides)
     return insert_row(connection, "work_time_entries", row)
@@ -183,6 +189,7 @@ def insert_workday_exception(
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "id": "workday-exception-1",
+        "title": "Untitled",
         "type": 1,
         "date": "2026-01-01",
         "time": 0,

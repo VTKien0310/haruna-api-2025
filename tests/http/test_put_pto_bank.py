@@ -43,6 +43,9 @@ async def test_put_pto_bank_creates_the_current_year_bank(
     assert content["year"] == date.today().year
     assert content["annual_balance"] == 13 * 480
     assert content["extended_balance"] == 0
+    assert content["original_annual_balance"] == content["annual_balance"]
+    assert content["original_extended_balance"] == content["extended_balance"]
+    assert content["original_seniority_balance"] == content["seniority_balance"]
 
 
 async def test_put_pto_bank_views_an_existing_past_year_record(

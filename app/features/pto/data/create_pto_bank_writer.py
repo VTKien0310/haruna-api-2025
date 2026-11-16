@@ -17,6 +17,9 @@ class CreatePtoBankWriter:
         annual_balance: int,
         extended_balance: int,
         seniority_balance: int,
+        original_annual_balance: int,
+        original_extended_balance: int,
+        original_seniority_balance: int,
     ) -> PtoBank:
         record = PtoBankRecord(
             owner_id=UUID(owner_id),
@@ -24,6 +27,9 @@ class CreatePtoBankWriter:
             annual_balance=annual_balance,
             extended_balance=extended_balance,
             seniority_balance=seniority_balance,
+            original_annual_balance=original_annual_balance,
+            original_extended_balance=original_extended_balance,
+            original_seniority_balance=original_seniority_balance,
         )
         db_session.add(record)
         await db_session.flush()

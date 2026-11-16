@@ -3,7 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Path, status
 
 from app.core import error_response
-from app.features.auth.guards import AuthenticatedGuardDep, CurrentAuthenticatedUserDep
+from app.features.authentication.guards import (
+    AuthenticatedGuardDep,
+    CurrentAuthenticatedUserDep,
+)
 from app.features.pto.entities import PtoBank
 from app.features.pto.services import GetOrCreatePtoBankServiceDep
 

@@ -5,6 +5,7 @@ from .remote_work_entry_entity import RemoteWorkType as RemoteWorkType
 from .time_off_entry_entity import TimeOffEntry as TimeOffEntry
 from .time_off_entry_entity import TimeOffType as TimeOffType
 from .work_time_entry_entity import WorkTimeEntry as WorkTimeEntry
+from .work_time_entry_entity import WorkTimeShift as WorkTimeShift
 from .work_time_entry_entity import WorkTimeType as WorkTimeType
 from .workday_exception_entity import WorkdayException as WorkdayException
 from .workday_exception_entity import WorkdayExceptionTime as WorkdayExceptionTime

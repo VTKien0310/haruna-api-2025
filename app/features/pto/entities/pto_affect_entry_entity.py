@@ -20,6 +20,8 @@ class PtoAffectEntry:
     entry_id: str | None
     entry_type: PtoAffectEntryType | None
     no_deduction: bool
+    note: str
+    title: str
     created_at: datetime
     updated_at: datetime
 
@@ -33,6 +35,8 @@ class PtoAffectEntry:
             if record.entry_type is not None
             else None,
             no_deduction=bool(record.no_deduction),
+            note=record.note,
+            title=record.title,
             created_at=record.created_at,
             updated_at=record.updated_at,
         )
@@ -47,6 +51,8 @@ class PtoAffectEntry:
             if data["entry_type"]
             else None,
             no_deduction=bool(int(data["no_deduction"])),
+            note=str(data["note"]),
+            title=str(data["title"]),
             created_at=datetime.fromisoformat(str(data["created_at"])),
             updated_at=datetime.fromisoformat(str(data["updated_at"])),
         )

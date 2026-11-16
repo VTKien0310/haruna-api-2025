@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 
 from app.core import AppException, error_response
-from app.features.auth.guards import AuthenticatedGuardDep
+from app.features.authentication.guards import AuthenticatedGuardDep
 from app.features.media.data import FindMediaByIdReaderDep
 from app.features.media.requests import CreateThumbnailRequest
 from app.features.media.responses import CreateThumbnailResponse
