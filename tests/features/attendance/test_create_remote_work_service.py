@@ -1,3 +1,6 @@
+from app.features.attendance.data import LockAttendanceCalendarWriter
+from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
+from app.features.attendance.services import ValidateAttendanceWorkdayService
 from datetime import date
 from uuid import UUID, uuid4
 
@@ -42,6 +45,10 @@ def _service(db_session_manager: DbSessionManager) -> CreateRemoteWorkService:
         CreateRemoteWorkEntryWriter(),
         CreatePtoAffectEntryWriter(),
         db_session_manager,
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
 
@@ -137,6 +144,10 @@ async def test_time_off_does_not_conflict_with_remote_work(
         NoopDeductPtoForEntryService(),
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
     await time_off_service.handle(TEST_USER_ID, DAY, None, TimeOffType.FULL_DAY)
 
@@ -167,6 +178,10 @@ async def test_affect_insert_failure_rolls_back_remote_work_entry(
         CreateRemoteWorkEntryWriter(),
         _FailingAffectWriter(),
         db_session_manager,
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):

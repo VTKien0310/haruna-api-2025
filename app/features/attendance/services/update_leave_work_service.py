@@ -13,6 +13,7 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     FindLeaveWorkEntriesByIdsAndDateReaderDep,
     FindOwnedLeaveWorkEntryReaderDep,
+    LockAttendanceCalendarWriterDep,
     UpdateLeaveWorkEntryWriterDep,
 )
 from app.features.attendance.entities import LeaveWorkEntry
@@ -20,7 +21,10 @@ from app.features.attendance.requests import (
     CreateLeaveWorkRequest,
     UpdateLeaveWorkRequest,
 )
-from app.features.attendance.services import CalculateLeaveWorkPenaltyServiceDep
+from app.features.attendance.services import (
+    CalculateLeaveWorkPenaltyServiceDep,
+    ValidateAttendanceWorkdayServiceDep,
+)
 from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
     UpdatePtoAffectEntryWriterDep,
@@ -40,6 +44,8 @@ class UpdateLeaveWorkService:
         reconcile: ReconcilePtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
         calculate_penalty_service: CalculateLeaveWorkPenaltyServiceDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_owned = find_owned
         self.__update_entry = update_entry
@@ -47,6 +53,8 @@ class UpdateLeaveWorkService:
         self.__find_affect_entries = find_affect_entries
         self.__update_affect = update_affect
         self.__reconcile = reconcile
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__calculate_penalty_service = calculate_penalty_service
 
@@ -54,6 +62,7 @@ class UpdateLeaveWorkService:
         self, user_id: str, entry_id: UUID, request: UpdateLeaveWorkRequest
     ) -> LeaveWorkEntry:
         async with self.__db_session_manager.transaction() as session:
+            await self.__lock_calendar.handle(session)
             owned = await self.__find_owned.handle(session, user_id, entry_id)
             if owned is None:
                 raise AppException(
@@ -75,6 +84,9 @@ class UpdateLeaveWorkService:
                         }
                     ]
                 )
+            await self.__validate_workday.handle(
+                session, [updated.date], interval=(updated.start, updated.end)
+            )
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,

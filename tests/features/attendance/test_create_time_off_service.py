@@ -1,3 +1,6 @@
+from app.features.attendance.data import LockAttendanceCalendarWriter
+from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
+from app.features.attendance.services import ValidateAttendanceWorkdayService
 from datetime import date
 from uuid import uuid4
 
@@ -49,6 +52,10 @@ def _service(db_session_manager: DbSessionManager) -> CreateTimeOffService:
         NoopDeductPtoForEntryService(),
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
 
@@ -191,6 +198,10 @@ async def test_affect_insert_failure_rolls_back_time_off_entry(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -221,6 +232,10 @@ async def test_full_day_time_off_creates_a_pto_transaction_per_day(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
     entries = await service.handle(
         TEST_USER_ID, FIRST_DAY, date(2026, 1, 6), TimeOffType.FULL_DAY
@@ -257,6 +272,10 @@ async def test_half_day_time_off_deducts_one_shift(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
     await service.handle(TEST_USER_ID, FIRST_DAY, None, TimeOffType.MORNING)
 

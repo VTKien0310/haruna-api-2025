@@ -8,9 +8,13 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     CreateLeaveWorkEntryWriterDep,
     FindLeaveWorkEntriesByIdsAndDateReaderDep,
+    LockAttendanceCalendarWriterDep,
 )
 from app.features.attendance.entities import LeaveWorkEntry
-from app.features.attendance.services import CalculateLeaveWorkPenaltyServiceDep
+from app.features.attendance.services import (
+    CalculateLeaveWorkPenaltyServiceDep,
+    ValidateAttendanceWorkdayServiceDep,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
@@ -29,12 +33,16 @@ class CreateLeaveWorkService:
         deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
         calculate_penalty_service: CalculateLeaveWorkPenaltyServiceDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_leave_work_entries_reader = find_leave_work_entries_reader
         self.__create_leave_work_entry_writer = create_leave_work_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__calculate_penalty_service = calculate_penalty_service
 
@@ -49,6 +57,10 @@ class CreateLeaveWorkService:
         title: str = "Untitled",
     ) -> LeaveWorkEntry:
         async with self.__db_session_manager.transaction() as db_session:
+            await self.__lock_calendar.handle(db_session)
+            await self.__validate_workday.handle(
+                db_session, [day], interval=(start, end)
+            )
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
                 db_session, user_id, PtoAffectEntryType.LEAVE_WORK
             )

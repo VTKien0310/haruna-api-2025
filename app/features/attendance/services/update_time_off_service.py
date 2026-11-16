@@ -13,11 +13,15 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     FindOwnedTimeOffEntryReaderDep,
     FindTimeOffEntriesByIdsAndDatesReaderDep,
+    LockAttendanceCalendarWriterDep,
     UpdateTimeOffEntryWriterDep,
 )
-from app.features.attendance.entities import TimeOffEntry
+from app.features.attendance.entities import TimeOffEntry, WorkdayExceptionTime
 from app.features.attendance.requests import CreateTimeOffRequest, UpdateTimeOffRequest
-from app.features.attendance.services import CalculateTimeOffPenaltyServiceDep
+from app.features.attendance.services import (
+    CalculateTimeOffPenaltyServiceDep,
+    ValidateAttendanceWorkdayServiceDep,
+)
 from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
     UpdatePtoAffectEntryWriterDep,
@@ -37,6 +41,8 @@ class UpdateTimeOffService:
         reconcile: ReconcilePtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
         calculate_penalty_service: CalculateTimeOffPenaltyServiceDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_owned = find_owned
         self.__update_entry = update_entry
@@ -44,6 +50,8 @@ class UpdateTimeOffService:
         self.__find_affect_entries = find_affect_entries
         self.__update_affect = update_affect
         self.__reconcile = reconcile
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__calculate_penalty_service = calculate_penalty_service
 
@@ -51,6 +59,7 @@ class UpdateTimeOffService:
         self, user_id: str, entry_id: UUID, request: UpdateTimeOffRequest
     ) -> TimeOffEntry:
         async with self.__db_session_manager.transaction() as session:
+            await self.__lock_calendar.handle(session)
             owned = await self.__find_owned.handle(session, user_id, entry_id)
             if owned is None:
                 raise AppException(
@@ -72,6 +81,9 @@ class UpdateTimeOffService:
                         }
                     ]
                 )
+            await self.__validate_workday.handle(
+                session, [updated.date], WorkdayExceptionTime(updated.type)
+            )
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,

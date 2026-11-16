@@ -8,10 +8,11 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     DeleteWorkdayExceptionWriterDep,
     FindWorkdayExceptionReaderDep,
+    LockAttendanceCalendarWriterDep,
 )
 from app.features.attendance.services import (
-    require_mutable_workday_exception,
-    workday_exception_today,
+    GetWorkdayExceptionTodayServiceDep,
+    RequireMutableWorkdayExceptionServiceDep,
 )
 from app.features.authorization.entities import SpecialPermission
 from app.features.authorization.services import RequireSpecialPermissionServiceDep
@@ -24,7 +25,13 @@ class DeleteWorkdayExceptionService:
         authorize: RequireSpecialPermissionServiceDep,
         reader: FindWorkdayExceptionReaderDep,
         delete: DeleteWorkdayExceptionWriterDep,
+        get_today: GetWorkdayExceptionTodayServiceDep,
+        require_mutable: RequireMutableWorkdayExceptionServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
+        self.__get_today = get_today
+        self.__require_mutable = require_mutable
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__authorize = authorize
         self.__reader = reader
@@ -35,6 +42,7 @@ class DeleteWorkdayExceptionService:
             await self.__authorize.handle(
                 session, user_id, SpecialPermission.MANAGE_WORKDAY_EXCEPTIONS
             )
+            await self.__lock_calendar.handle(session, exclusive=True)
             record = await self.__reader.handle(session, exception_id, for_update=True)
             if record is None:
                 raise AppException(
@@ -42,7 +50,7 @@ class DeleteWorkdayExceptionService:
                     code="workday_exception_not_found",
                     message="Workday exception not found",
                 )
-            require_mutable_workday_exception(record.date, workday_exception_today())
+            self.__require_mutable.handle(record.date, self.__get_today.handle())
             await self.__delete.handle(session, record)
 
 

@@ -13,7 +13,7 @@ from tests.factories.database_records import (
 )
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
-SUNDAY = "2026-01-04"
+MONDAY = "2026-01-05"
 OTHER_USER_ID = str(uuid4())
 
 
@@ -30,7 +30,7 @@ async def _seed_user(db_session_manager: DbSessionManager) -> None:
 async def test_post_check_in_rejects_a_missing_token(db_client: TestClient) -> None:
     response = db_client.post(
         "/api/attendance/check-ins",
-        json={"date": SUNDAY, "time": "09:00"},
+        json={"date": MONDAY, "time": "09:00"},
     )
 
     assert response.status_code == 401
@@ -52,7 +52,7 @@ async def test_post_check_in_stores_the_arrival_and_the_affect_row(
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
     await _seed_user(db_session_manager)
-    payload: dict[str, str | int] = {"date": SUNDAY, "time": "09:00:59"}
+    payload: dict[str, str | int] = {"date": MONDAY, "time": "09:00:59"}
     if requested_no_deduction is not None:
         payload["no_deduction"] = requested_no_deduction
 
@@ -66,7 +66,7 @@ async def test_post_check_in_stores_the_arrival_and_the_affect_row(
     body = response.json()
     assert body["ok"] is True
     content = body["content"]
-    assert content["date"] == SUNDAY
+    assert content["date"] == MONDAY
     assert content["time"] == "09:00:00"
 
     async with db_session_manager.session() as session:
@@ -97,7 +97,7 @@ async def test_post_check_in_stores_an_optional_affect_note(
         "/api/attendance/check-ins",
         headers={"Authorization": "Bearer token-1"},
         json={
-            "date": SUNDAY,
+            "date": MONDAY,
             "time": "09:00",
             "note": requested_note,
             "no_deduction": 1,
@@ -118,13 +118,13 @@ async def test_post_check_in_reports_an_existing_arrival(
 ) -> None:
     supabase.auth().register("token-1", user_id=TEST_USER_ID)
     headers = {"Authorization": "Bearer token-1"}
-    body = {"date": SUNDAY, "time": "09:00", "no_deduction": 1}
+    body = {"date": MONDAY, "time": "09:00", "no_deduction": 1}
     db_client.post("/api/attendance/check-ins", headers=headers, json=body)
 
     response = db_client.post(
         "/api/attendance/check-ins",
         headers=headers,
-        json={"date": SUNDAY, "time": "10:30"},
+        json={"date": MONDAY, "time": "10:30"},
     )
 
     assert response.status_code == 409
@@ -142,12 +142,12 @@ async def test_post_check_in_allows_another_caller_on_the_same_date(
     first = db_client.post(
         "/api/attendance/check-ins",
         headers={"Authorization": "Bearer token-1"},
-        json={"date": SUNDAY, "time": "08:00"},
+        json={"date": MONDAY, "time": "08:00"},
     )
     second = db_client.post(
         "/api/attendance/check-ins",
         headers={"Authorization": "Bearer token-2"},
-        json={"date": SUNDAY, "time": "08:45", "no_deduction": 1},
+        json={"date": MONDAY, "time": "08:45", "no_deduction": 1},
     )
 
     assert first.status_code == 200
@@ -163,10 +163,10 @@ async def test_post_check_in_rejects_invalid_fields(
 
     for payload in (
         {"date": "not-a-date", "time": "09:00"},
-        {"date": SUNDAY, "time": "not-a-time"},
-        {"date": SUNDAY, "time": "09:00", "no_deduction": -1},
-        {"date": SUNDAY, "time": "09:00", "no_deduction": 2},
-        {"date": SUNDAY, "time": "09:00", "note": 1},
+        {"date": MONDAY, "time": "not-a-time"},
+        {"date": MONDAY, "time": "09:00", "no_deduction": -1},
+        {"date": MONDAY, "time": "09:00", "no_deduction": 2},
+        {"date": MONDAY, "time": "09:00", "note": 1},
     ):
         response = db_client.post(
             "/api/attendance/check-ins",

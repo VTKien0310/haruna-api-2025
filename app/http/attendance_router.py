@@ -23,7 +23,6 @@ from app.features.attendance.requests import (
     UpdateLeaveWorkRequest,
     UpdateRemoteWorkRequest,
     UpdateTimeOffRequest,
-    UpdateWorkdayExceptionRequest,
     UpdateWorkTimeRequest,
 )
 from app.features.attendance.services import (
@@ -40,7 +39,6 @@ from app.features.attendance.services import (
     UpdateLeaveWorkServiceDep,
     UpdateRemoteWorkServiceDep,
     UpdateTimeOffServiceDep,
-    UpdateWorkdayExceptionServiceDep,
     UpdateWorkTimeServiceDep,
 )
 from app.features.authentication.guards import (
@@ -57,6 +55,8 @@ router = APIRouter(
     "/check-ins",
     summary="POST /api/attendance/check-ins",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Record one arrival for the caller and link it to the caller's PTO affect entries.\n\n"
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date of the arrival and time is the local clock time "
@@ -70,13 +70,14 @@ router = APIRouter(
         "Responses:\n"
         "- 200: the stored check-in (id, date, time)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: check_in_already_exists when this caller already has an arrival on that date\n"
+        "- 409: attendance_non_workday when the affected shift is not working; check_in_already_exists when this caller already has an arrival on that date\n"
         "- 422: validation_error when date or time is missing or unparseable, no_deduction "
         "is not 0 or 1, or note is not a string\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
-            "This caller already has an arrival on that date (check_in_already_exists).",
+            "Non-workday shift or an arrival already exists on that date.",
+            "attendance_non_workday",
             "check_in_already_exists",
         ),
     },
@@ -95,6 +96,8 @@ async def create_check_in(
     "/time-offs",
     summary="POST /api/attendance/time-offs",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Record one or more full days off, or one morning or afternoon off, for the caller.\n\n"
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: start_date is required; end_date is optional, inclusive, and defaults to "
@@ -106,9 +109,10 @@ async def create_check_in(
         "omitted or null note is stored as an empty string.\n\n"
         "title is optional and stored on each linked PTO affect entry; it defaults to Untitled. Null is rejected. \n\n"
         "Responses:\n"
+        "The entire range is rejected if any date is not a workday for both shifts. "
         "- 200: the created time-off entries, one per date\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: time_off_already_exists when this caller already has a conflicting "
+        "- 409: attendance_non_workday when the affected shift is not working; time_off_already_exists when this caller already has a conflicting "
         "time-off entry on a date in the range\n"
         "- 422: validation_error when dates are invalid, the range exceeds 366 dates, "
         "a multi-date range is not full day, type is not 0, 1, or 2, no_deduction is "
@@ -116,8 +120,8 @@ async def create_check_in(
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
-            "This caller already has a conflicting time-off entry on the date "
-            "(time_off_already_exists).",
+            "Non-workday shift or a conflicting time-off entry on the date.",
+            "attendance_non_workday",
             "time_off_already_exists",
         ),
     },
@@ -142,6 +146,8 @@ async def create_time_off(
     "/remote-works",
     summary="POST /api/attendance/remote-works",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Record remote work for the caller for a full day, morning, or afternoon.\n\n"
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date and type is 0 for full day, 1 for morning, or "
@@ -154,15 +160,15 @@ async def create_time_off(
         "Responses:\n"
         "- 200: the stored remote-work entry (id, date, type)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: remote_work_already_exists when this caller already has a conflicting "
+        "- 409: attendance_non_workday when the affected shift is not working; remote_work_already_exists when this caller already has a conflicting "
         "remote-work entry on that date\n"
         "- 422: validation_error when date is invalid, type is not 0, 1, or 2, or note "
         "is not a string\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
-            "This caller already has a conflicting remote-work entry on that date "
-            "(remote_work_already_exists).",
+            "Non-workday shift or a conflicting remote-work entry on that date.",
+            "attendance_non_workday",
             "remote_work_already_exists",
         ),
     },
@@ -181,6 +187,8 @@ async def create_remote_work(
     "/work-times",
     summary="POST /api/attendance/work-times",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Record late coverage or an early departure for one shift of the caller's day.\n\n"
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date; time is 0 for morning or 1 for afternoon; "
@@ -195,7 +203,7 @@ async def create_remote_work(
         "Responses:\n"
         "- 200: the stored work-time entry (id, date, time, type, duration)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: work_time_already_exists for the same type in the same shift, or "
+        "- 409: attendance_non_workday when the affected shift is not working; work_time_already_exists for the same type in the same shift, or "
         "work_time_overlaps when durations cover the whole shift\n"
         "- 422: validation_error when date is invalid, time is not 0 or 1, type is not "
         "0 or 1, duration is outside 1–240, no_deduction is not 0 or 1, or note is not "
@@ -206,6 +214,7 @@ async def create_remote_work(
             "The caller already has this work-time type in the shift "
             "(work_time_already_exists), or the combined duration covers the whole "
             "shift (work_time_overlaps).",
+            "attendance_non_workday",
             "work_time_already_exists",
             "work_time_overlaps",
         ),
@@ -232,6 +241,8 @@ async def create_work_time(
     "/leave-works",
     summary="POST /api/attendance/leave-works",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Record a temporary absence interval for the caller on one date.\n\n"
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date; start and end are local clock times. Seconds "
@@ -245,7 +256,7 @@ async def create_work_time(
         "Responses:\n"
         "- 200: the stored leave-work entry (id, date, start, end)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: leave_work_overlaps when this caller already has an overlapping "
+        "- 409: attendance_non_workday when the affected shift is not working; leave_work_overlaps when this caller already has an overlapping "
         "leave-work interval on that date\n"
         "- 422: validation_error when date or times are invalid, start is not before end, "
         "no_deduction is not 0 or 1, or note is not a string\n"
@@ -254,6 +265,7 @@ async def create_work_time(
         status.HTTP_409_CONFLICT: error_response(
             "This caller already has an overlapping leave-work interval on that date "
             "(leave_work_overlaps).",
+            "attendance_non_workday",
             "leave_work_overlaps",
         ),
     },
@@ -278,6 +290,8 @@ async def create_leave_work(
     "/check-ins/{entry_id}",
     summary="PATCH /api/attendance/check-ins/{entry_id}",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Update one check-ins entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
         "The linked PTO affect title is regenerated as Check-in on YYYY-MM-DD from the updated date. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
@@ -287,7 +301,7 @@ async def create_leave_work(
         "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
         "up to their original limits. No penalty change creates no transaction. "
         "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
-        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "409: attendance_non_workday, past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
         "(check_in_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
     ),
     responses={
@@ -298,7 +312,8 @@ async def create_leave_work(
             "profile_not_found",
         ),
         409: error_response(
-            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "Non-workday shift, past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "attendance_non_workday",
             "past_year_entry_not_editable",
             "pto_adjustment_conflict",
             "check_in_already_exists",
@@ -320,6 +335,8 @@ async def update_check_in(
     "/time-offs/{entry_id}",
     summary="PATCH /api/attendance/time-offs/{entry_id}",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Update one time-offs entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
         "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
@@ -329,7 +346,7 @@ async def update_check_in(
         "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
         "up to their original limits. No penalty change creates no transaction. "
         "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
-        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "409: attendance_non_workday, past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
         "(time_off_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
     ),
     responses={
@@ -340,7 +357,8 @@ async def update_check_in(
             "profile_not_found",
         ),
         409: error_response(
-            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "Non-workday shift, past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "attendance_non_workday",
             "past_year_entry_not_editable",
             "pto_adjustment_conflict",
             "time_off_already_exists",
@@ -362,6 +380,8 @@ async def update_time_off(
     "/remote-works/{entry_id}",
     summary="PATCH /api/attendance/remote-works/{entry_id}",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Update one remote-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
         "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
@@ -371,7 +391,7 @@ async def update_time_off(
         "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
         "up to their original limits. No penalty change creates no transaction. "
         "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found. "
-        "409: past_year_entry_not_editable or a creation-style conflict "
+        "409: attendance_non_workday, past_year_entry_not_editable or a creation-style conflict "
         "(remote_work_already_exists). 422: validation_error for invalid body, UUID, merged constraints, or year change."
     ),
     responses={
@@ -380,7 +400,8 @@ async def update_time_off(
             "attendance_entry_not_found",
         ),
         409: error_response(
-            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "Non-workday shift, past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "attendance_non_workday",
             "past_year_entry_not_editable",
             "remote_work_already_exists",
         ),
@@ -401,6 +422,8 @@ async def update_remote_work(
     "/work-times/{entry_id}",
     summary="PATCH /api/attendance/work-times/{entry_id}",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Update one work-times entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
         "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
@@ -410,7 +433,7 @@ async def update_remote_work(
         "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
         "up to their original limits. No penalty change creates no transaction. "
         "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
-        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "409: attendance_non_workday, past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
         "(work_time_already_exists, work_time_overlaps). 422: validation_error for invalid body, UUID, merged constraints, or year change."
     ),
     responses={
@@ -421,7 +444,8 @@ async def update_remote_work(
             "profile_not_found",
         ),
         409: error_response(
-            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "Non-workday shift, past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "attendance_non_workday",
             "past_year_entry_not_editable",
             "pto_adjustment_conflict",
             "work_time_already_exists",
@@ -444,6 +468,8 @@ async def update_work_time(
     "/leave-works/{entry_id}",
     summary="PATCH /api/attendance/leave-works/{entry_id}",
     description=(
+        "Affected shifts must be workdays: weekdays by default, with WORKDAY exceptions enabling "
+        "weekend shifts and HOLIDAY exceptions taking precedence. Full-day entries require both shifts. "
         "Update one leave-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
         "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
@@ -453,7 +479,7 @@ async def update_work_time(
         "PTO adjustments cancel outstanding excess before restoring annual, seniority, then extended balances "
         "up to their original limits. No penalty change creates no transaction. "
         "200: updated entry. 401: unauthorized. 404: attendance_entry_not_found, pto_bank_not_found, or profile_not_found. "
-        "409: past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
+        "409: attendance_non_workday, past_year_entry_not_editable, pto_adjustment_conflict, or a creation-style conflict "
         "(leave_work_overlaps). 422: validation_error for invalid body, UUID, merged constraints, or year change."
     ),
     responses={
@@ -464,7 +490,8 @@ async def update_work_time(
             "profile_not_found",
         ),
         409: error_response(
-            "Past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "Non-workday shift, past-year edit, attendance conflict, or inconsistent PTO adjustment.",
+            "attendance_non_workday",
             "past_year_entry_not_editable",
             "pto_adjustment_conflict",
             "leave_work_overlaps",
@@ -486,12 +513,15 @@ async def update_leave_work(
     "/workday-exceptions",
     status_code=201,
     summary="POST /api/attendance/workday-exceptions",
-    description="POST /api/attendance/workday-exceptions. Create a workday exception from type, date, time, and title. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 201 success; 401 unauthorized; 403 forbidden; 422 validation_error. 409 past_workday_exception_immutable.",
+    description="POST /api/attendance/workday-exceptions. Create a workday exception from type, date, time, and title. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. New exceptions cannot overlap or mix holiday and workday types on the same date. Matching-type morning and afternoon exceptions may coexist. HOLIDAY creation atomically sets matching attendance entries across all users to no_deduction=1 and refunds their entire outstanding penalty, including partial overlaps. WORKDAY creation has no PTO effects. Only dates today or later in Asia/Ho_Chi_Minh can be changed. Responses: 201 success; 401 unauthorized; 403 forbidden; 422 validation_error. 409 past_workday_exception_immutable, invalid_workday_exception_day, workday_exception_overlap, or pto_adjustment_conflict. Holidays require Monday through Friday; workdays require Saturday or Sunday, for every period.",
     responses={
         403: error_response("Required permission is missing.", "forbidden"),
         409: error_response(
-            "Past workday exceptions cannot be changed.",
+            "Past exception, invalid day of week, overlapping exception, or inconsistent PTO history or restoration capacity.",
             "past_workday_exception_immutable",
+            "invalid_workday_exception_day",
+            "workday_exception_overlap",
+            "pto_adjustment_conflict",
         ),
     },
 )
@@ -507,7 +537,7 @@ async def create_workday_exception(
     "/workday-exceptions",
     status_code=200,
     summary="GET /api/attendance/workday-exceptions",
-    description="GET /api/attendance/workday-exceptions. List all workday exceptions ordered by date, then ID. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Responses: 200 success; 401 unauthorized; 403 forbidden.",
+    description="GET /api/attendance/workday-exceptions. List all workday exceptions ordered by date, then ID. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. New exceptions cannot overlap or mix holiday and workday types on the same date. Matching-type morning and afternoon exceptions may coexist. Responses: 200 success; 401 unauthorized; 403 forbidden.",
     responses={
         403: error_response("Required permission is missing.", "forbidden"),
     },
@@ -522,7 +552,7 @@ async def list_workday_exceptions(
     "/workday-exceptions/{exception_id}",
     status_code=200,
     summary="GET /api/attendance/workday-exceptions/{exception_id}",
-    description="GET /api/attendance/workday-exceptions/{exception_id}. Return one workday exception. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Responses: 200 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found.",
+    description="GET /api/attendance/workday-exceptions/{exception_id}. Return one workday exception. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. New exceptions cannot overlap or mix holiday and workday types on the same date. Matching-type morning and afternoon exceptions may coexist. Responses: 200 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found.",
     responses={
         403: error_response("Required permission is missing.", "forbidden"),
         404: error_response(
@@ -538,36 +568,11 @@ async def get_workday_exception(
     return await service.handle(user.id, exception_id)
 
 
-@router.patch(
-    "/workday-exceptions/{exception_id}",
-    status_code=200,
-    summary="PATCH /api/attendance/workday-exceptions/{exception_id}",
-    description="PATCH /api/attendance/workday-exceptions/{exception_id}. Update supplied type, date, time, or title fields; omitted fields stay unchanged. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 200 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found. 409 past_workday_exception_immutable.",
-    responses={
-        403: error_response("Required permission is missing.", "forbidden"),
-        404: error_response(
-            "Workday exception not found.", "workday_exception_not_found"
-        ),
-        409: error_response(
-            "Past workday exceptions cannot be changed.",
-            "past_workday_exception_immutable",
-        ),
-    },
-)
-async def update_workday_exception(
-    exception_id: Annotated[UUID, Path(description="Workday exception ID")],
-    request: UpdateWorkdayExceptionRequest,
-    user: CurrentAuthenticatedUserDep,
-    service: UpdateWorkdayExceptionServiceDep,
-) -> WorkdayException:
-    return await service.handle(user.id, exception_id, request)
-
-
 @router.delete(
     "/workday-exceptions/{exception_id}",
     status_code=204,
     summary="DELETE /api/attendance/workday-exceptions/{exception_id}",
-    description="DELETE /api/attendance/workday-exceptions/{exception_id}. Delete one workday exception and return no body. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 204 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found. 409 past_workday_exception_immutable.",
+    description="DELETE /api/attendance/workday-exceptions/{exception_id}. Delete one workday exception and return no body. Exemptions, balances, and PTO transactions remain unchanged. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. New exceptions cannot overlap or mix holiday and workday types on the same date. Matching-type morning and afternoon exceptions may coexist. Only dates today or later in Asia/Ho_Chi_Minh can be changed. Responses: 204 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found. 409 past_workday_exception_immutable.",
     responses={
         403: error_response("Required permission is missing.", "forbidden"),
         404: error_response(

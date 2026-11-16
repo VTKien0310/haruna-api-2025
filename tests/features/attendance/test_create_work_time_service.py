@@ -1,3 +1,6 @@
+from app.features.attendance.data import LockAttendanceCalendarWriter
+from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
+from app.features.attendance.services import ValidateAttendanceWorkdayService
 from datetime import date
 from uuid import UUID, uuid4
 
@@ -45,6 +48,10 @@ def _service(db_session_manager: DbSessionManager) -> CreateWorkTimeService:
         CreatePtoAffectEntryWriter(),
         NoopDeductPtoForEntryService(),
         db_session_manager,
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
 
@@ -215,6 +222,10 @@ async def test_affect_insert_failure_rolls_back_work_time_entry(
         _FailingAffectWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -250,6 +261,10 @@ async def test_work_time_creates_a_pto_transaction_for_its_duration(
         CreatePtoAffectEntryWriter(),
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
     await service.handle(
         TEST_USER_ID,

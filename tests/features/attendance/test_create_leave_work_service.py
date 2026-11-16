@@ -1,3 +1,6 @@
+from app.features.attendance.data import LockAttendanceCalendarWriter
+from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
+from app.features.attendance.services import ValidateAttendanceWorkdayService
 from datetime import date, time
 from uuid import UUID, uuid4
 
@@ -48,6 +51,10 @@ def _service(db_session_manager: DbSessionManager) -> CreateLeaveWorkService:
         NoopDeductPtoForEntryService(),
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
 
@@ -146,6 +153,10 @@ async def test_affect_insert_failure_rolls_back_leave_work_entry(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
 
     with pytest.raises(RuntimeError, match="force rollback"):
@@ -176,6 +187,10 @@ async def test_leave_work_creates_a_pto_transaction_for_the_interval(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
+        validate_workday=ValidateAttendanceWorkdayService(
+            FindWorkdayExceptionsByDatesReader()
+        ),
+        lock_calendar=LockAttendanceCalendarWriter(),
     )
     leave_work = await service.handle(TEST_USER_ID, DAY, time(9, 0), time(10, 30))
     assert leave_work.end == time(10, 30)

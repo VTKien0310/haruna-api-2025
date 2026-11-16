@@ -8,9 +8,13 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     CreateCheckInEntryWriterDep,
     FindCheckInEntryByIdsAndDateReaderDep,
+    LockAttendanceCalendarWriterDep,
 )
-from app.features.attendance.entities import CheckInEntry
-from app.features.attendance.services import CalculateCheckInPenaltyServiceDep
+from app.features.attendance.entities import CheckInEntry, WorkdayExceptionTime
+from app.features.attendance.services import (
+    CalculateCheckInPenaltyServiceDep,
+    ValidateAttendanceWorkdayServiceDep,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
@@ -29,12 +33,16 @@ class CreateCheckInService:
         deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
         calculate_penalty_service: CalculateCheckInPenaltyServiceDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_check_in_entry_reader = find_check_in_entry_reader
         self.__create_check_in_entry_writer = create_check_in_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__calculate_penalty_service = calculate_penalty_service
 
@@ -47,6 +55,10 @@ class CreateCheckInService:
         note: str | None = None,
     ) -> CheckInEntry:
         async with self.__db_session_manager.transaction() as db_session:
+            await self.__lock_calendar.handle(db_session)
+            await self.__validate_workday.handle(
+                db_session, [day], WorkdayExceptionTime.MORNING
+            )
             arrival = arrival.replace(second=0, microsecond=0)
 
             affect_entries = await self.__find_pto_affect_entries_reader.handle(

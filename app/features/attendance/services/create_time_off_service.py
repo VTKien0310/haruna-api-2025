@@ -8,9 +8,17 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     CreateTimeOffEntryWriterDep,
     FindTimeOffEntriesByIdsAndDatesReaderDep,
+    LockAttendanceCalendarWriterDep,
 )
-from app.features.attendance.entities import TimeOffEntry, TimeOffType
-from app.features.attendance.services import CalculateTimeOffPenaltyServiceDep
+from app.features.attendance.entities import (
+    TimeOffEntry,
+    TimeOffType,
+    WorkdayExceptionTime,
+)
+from app.features.attendance.services import (
+    CalculateTimeOffPenaltyServiceDep,
+    ValidateAttendanceWorkdayServiceDep,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriterDep,
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
@@ -29,12 +37,16 @@ class CreateTimeOffService:
         deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
         calculate_penalty_service: CalculateTimeOffPenaltyServiceDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
         self.__find_time_off_entries_reader = find_time_off_entries_reader
         self.__create_time_off_entry_writer = create_time_off_entry_writer
         self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
         self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
         self.__calculate_penalty_service = calculate_penalty_service
 
@@ -55,6 +67,10 @@ class CreateTimeOffService:
         ]
 
         async with self.__db_session_manager.transaction() as db_session:
+            await self.__lock_calendar.handle(db_session)
+            await self.__validate_workday.handle(
+                db_session, days, WorkdayExceptionTime(entry_type)
+            )
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
                 db_session, user_id, PtoAffectEntryType.TIME_OFF
             )

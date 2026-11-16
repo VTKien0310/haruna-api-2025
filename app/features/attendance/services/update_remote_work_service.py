@@ -13,13 +13,15 @@ from app.database import DbSessionManagerDep
 from app.features.attendance.data import (
     FindOwnedRemoteWorkEntryReaderDep,
     FindRemoteWorkEntriesByIdsAndDateReaderDep,
+    LockAttendanceCalendarWriterDep,
     UpdateRemoteWorkEntryWriterDep,
 )
-from app.features.attendance.entities import RemoteWorkEntry
+from app.features.attendance.entities import RemoteWorkEntry, WorkdayExceptionTime
 from app.features.attendance.requests import (
     CreateRemoteWorkRequest,
     UpdateRemoteWorkRequest,
 )
+from app.features.attendance.services import ValidateAttendanceWorkdayServiceDep
 from app.features.pto.data import (
     FindPtoAffectEntriesByOwnerAndTypeReaderDep,
     UpdatePtoAffectEntryWriterDep,
@@ -38,6 +40,8 @@ class UpdateRemoteWorkService:
         update_affect: UpdatePtoAffectEntryWriterDep,
         reconcile: ReconcilePtoForEntryServiceDep,
         db_session_manager: DbSessionManagerDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
     ) -> None:
         self.__find_owned = find_owned
         self.__update_entry = update_entry
@@ -45,12 +49,15 @@ class UpdateRemoteWorkService:
         self.__find_affect_entries = find_affect_entries
         self.__update_affect = update_affect
         self.__reconcile = reconcile
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
         self.__db_session_manager = db_session_manager
 
     async def handle(
         self, user_id: str, entry_id: UUID, request: UpdateRemoteWorkRequest
     ) -> RemoteWorkEntry:
         async with self.__db_session_manager.transaction() as session:
+            await self.__lock_calendar.handle(session)
             owned = await self.__find_owned.handle(session, user_id, entry_id)
             if owned is None:
                 raise AppException(
@@ -72,6 +79,9 @@ class UpdateRemoteWorkService:
                         }
                     ]
                 )
+            await self.__validate_workday.handle(
+                session, [updated.date], WorkdayExceptionTime(updated.type)
+            )
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,

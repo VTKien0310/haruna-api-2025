@@ -18,6 +18,3 @@ from .update_work_time_request import UpdateWorkTimeRequest as UpdateWorkTimeReq
 from .create_workday_exception_request import (
     CreateWorkdayExceptionRequest as CreateWorkdayExceptionRequest,
 )
-from .update_workday_exception_request import (
-    UpdateWorkdayExceptionRequest as UpdateWorkdayExceptionRequest,
-)
