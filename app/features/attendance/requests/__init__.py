@@ -15,3 +15,9 @@ from .update_remote_work_request import (
 )
 from .update_time_off_request import UpdateTimeOffRequest as UpdateTimeOffRequest
 from .update_work_time_request import UpdateWorkTimeRequest as UpdateWorkTimeRequest
+from .create_workday_exception_request import (
+    CreateWorkdayExceptionRequest as CreateWorkdayExceptionRequest,
+)
+from .update_workday_exception_request import (
+    UpdateWorkdayExceptionRequest as UpdateWorkdayExceptionRequest,
+)

@@ -194,3 +194,22 @@ class UserSpecialPermissionRecord(SQLModel, table=True):
         default_factory=_utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+
+
+class WorkdayExceptionRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "workday_exceptions"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    type: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    date: date
+    time: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    title: str = Field(default="Untitled", sa_column=Column(Text, nullable=False))
+    created_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

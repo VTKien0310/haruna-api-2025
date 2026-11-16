@@ -13,3 +13,4 @@ from .session import DbSessionManager as DbSessionManager
 from .session import DbSessionManagerDep as DbSessionManagerDep
 from .session import get_db_session_manager as get_db_session_manager
 from .session import init_db_session_manager as init_db_session_manager
+from .models import WorkdayExceptionRecord as WorkdayExceptionRecord

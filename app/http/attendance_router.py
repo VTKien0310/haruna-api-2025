@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, Response, status
 
 from app.core import error_response
 from app.features.attendance.entities import (
@@ -9,6 +9,7 @@ from app.features.attendance.entities import (
     LeaveWorkEntry,
     RemoteWorkEntry,
     TimeOffEntry,
+    WorkdayException,
     WorkTimeEntry,
 )
 from app.features.attendance.requests import (
@@ -16,11 +17,13 @@ from app.features.attendance.requests import (
     CreateLeaveWorkRequest,
     CreateRemoteWorkRequest,
     CreateTimeOffRequest,
+    CreateWorkdayExceptionRequest,
     CreateWorkTimeRequest,
     UpdateCheckInRequest,
     UpdateLeaveWorkRequest,
     UpdateRemoteWorkRequest,
     UpdateTimeOffRequest,
+    UpdateWorkdayExceptionRequest,
     UpdateWorkTimeRequest,
 )
 from app.features.attendance.services import (
@@ -28,11 +31,16 @@ from app.features.attendance.services import (
     CreateLeaveWorkServiceDep,
     CreateRemoteWorkServiceDep,
     CreateTimeOffServiceDep,
+    CreateWorkdayExceptionServiceDep,
     CreateWorkTimeServiceDep,
+    DeleteWorkdayExceptionServiceDep,
+    GetWorkdayExceptionServiceDep,
+    ListWorkdayExceptionsServiceDep,
     UpdateCheckInServiceDep,
     UpdateLeaveWorkServiceDep,
     UpdateRemoteWorkServiceDep,
     UpdateTimeOffServiceDep,
+    UpdateWorkdayExceptionServiceDep,
     UpdateWorkTimeServiceDep,
 )
 from app.features.authentication.guards import (
@@ -472,3 +480,109 @@ async def update_leave_work(
     service: UpdateLeaveWorkServiceDep,
 ) -> LeaveWorkEntry:
     return await service.handle(user.id, entry_id, request)
+
+
+@router.post(
+    "/workday-exceptions",
+    status_code=201,
+    summary="POST /api/attendance/workday-exceptions",
+    description="POST /api/attendance/workday-exceptions. Create a workday exception from type, date, time, and title. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 201 success; 401 unauthorized; 403 forbidden; 422 validation_error. 409 past_workday_exception_immutable.",
+    responses={
+        403: error_response("Required permission is missing.", "forbidden"),
+        409: error_response(
+            "Past workday exceptions cannot be changed.",
+            "past_workday_exception_immutable",
+        ),
+    },
+)
+async def create_workday_exception(
+    request: CreateWorkdayExceptionRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: CreateWorkdayExceptionServiceDep,
+) -> WorkdayException:
+    return await service.handle(user.id, request)
+
+
+@router.get(
+    "/workday-exceptions",
+    status_code=200,
+    summary="GET /api/attendance/workday-exceptions",
+    description="GET /api/attendance/workday-exceptions. List all workday exceptions ordered by date, then ID. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Responses: 200 success; 401 unauthorized; 403 forbidden.",
+    responses={
+        403: error_response("Required permission is missing.", "forbidden"),
+    },
+)
+async def list_workday_exceptions(
+    user: CurrentAuthenticatedUserDep, service: ListWorkdayExceptionsServiceDep
+) -> list[WorkdayException]:
+    return await service.handle(user.id)
+
+
+@router.get(
+    "/workday-exceptions/{exception_id}",
+    status_code=200,
+    summary="GET /api/attendance/workday-exceptions/{exception_id}",
+    description="GET /api/attendance/workday-exceptions/{exception_id}. Return one workday exception. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Responses: 200 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found.",
+    responses={
+        403: error_response("Required permission is missing.", "forbidden"),
+        404: error_response(
+            "Workday exception not found.", "workday_exception_not_found"
+        ),
+    },
+)
+async def get_workday_exception(
+    exception_id: Annotated[UUID, Path(description="Workday exception ID")],
+    user: CurrentAuthenticatedUserDep,
+    service: GetWorkdayExceptionServiceDep,
+) -> WorkdayException:
+    return await service.handle(user.id, exception_id)
+
+
+@router.patch(
+    "/workday-exceptions/{exception_id}",
+    status_code=200,
+    summary="PATCH /api/attendance/workday-exceptions/{exception_id}",
+    description="PATCH /api/attendance/workday-exceptions/{exception_id}. Update supplied type, date, time, or title fields; omitted fields stay unchanged. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 200 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found. 409 past_workday_exception_immutable.",
+    responses={
+        403: error_response("Required permission is missing.", "forbidden"),
+        404: error_response(
+            "Workday exception not found.", "workday_exception_not_found"
+        ),
+        409: error_response(
+            "Past workday exceptions cannot be changed.",
+            "past_workday_exception_immutable",
+        ),
+    },
+)
+async def update_workday_exception(
+    exception_id: Annotated[UUID, Path(description="Workday exception ID")],
+    request: UpdateWorkdayExceptionRequest,
+    user: CurrentAuthenticatedUserDep,
+    service: UpdateWorkdayExceptionServiceDep,
+) -> WorkdayException:
+    return await service.handle(user.id, exception_id, request)
+
+
+@router.delete(
+    "/workday-exceptions/{exception_id}",
+    status_code=204,
+    summary="DELETE /api/attendance/workday-exceptions/{exception_id}",
+    description="DELETE /api/attendance/workday-exceptions/{exception_id}. Delete one workday exception and return no body. Requires a bearer token and MANAGE_WORKDAY_EXCEPTIONS, including reads. Type: workday=0, holiday=1. Period: full day=0, morning=1, afternoon=2. Overlaps are allowed. Only dates today or later in Asia/Ho_Chi_Minh can be changed; PATCH checks both stored and replacement dates. Responses: 204 success; 401 unauthorized; 403 forbidden; 422 validation_error. 404 workday_exception_not_found. 409 past_workday_exception_immutable.",
+    responses={
+        403: error_response("Required permission is missing.", "forbidden"),
+        404: error_response(
+            "Workday exception not found.", "workday_exception_not_found"
+        ),
+        409: error_response(
+            "Past workday exceptions cannot be changed.",
+            "past_workday_exception_immutable",
+        ),
+    },
+)
+async def delete_workday_exception(
+    exception_id: Annotated[UUID, Path(description="Workday exception ID")],
+    user: CurrentAuthenticatedUserDep,
+    service: DeleteWorkdayExceptionServiceDep,
+) -> Response:
+    await service.handle(user.id, exception_id)
+    return Response(status_code=204)
