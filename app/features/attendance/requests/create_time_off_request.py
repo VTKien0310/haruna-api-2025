@@ -24,6 +24,10 @@ class CreateTimeOffRequest(BaseModel):
             "Defaults to 0 when omitted and applies to every date in the range."
         ),
     )
+    title: str = Field(
+        default="Untitled",
+        description="Title stored on each linked PTO affect entry; defaults to Untitled.",
+    )
     note: str | None = Field(
         default=None,
         description=(

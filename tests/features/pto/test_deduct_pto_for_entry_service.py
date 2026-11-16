@@ -42,6 +42,7 @@ def _affect_entry(
         entry_type=entry_type,
         no_deduction=no_deduction,
         note="",
+        title="Untitled",
         created_at=NOW,
         updated_at=NOW,
     )

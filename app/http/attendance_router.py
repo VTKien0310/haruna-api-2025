@@ -58,6 +58,7 @@ router = APIRouter(
         "exception that skips deduction; it defaults to 0. note is optional and is stored "
         "on the linked PTO affect entry; an omitted or null note is stored as an empty "
         "string.\n\n"
+        "The linked PTO affect title is generated as Check-in on YYYY-MM-DD from the entry date. \n\n"
         "Responses:\n"
         "- 200: the stored check-in (id, date, time)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -95,6 +96,7 @@ async def create_check_in(
         "exception that skips deduction; it defaults to 0 and applies to every date in the "
         "range. note is optional and is stored on every linked PTO affect entry; an "
         "omitted or null note is stored as an empty string.\n\n"
+        "title is optional and stored on each linked PTO affect entry; it defaults to Untitled. Null is rejected. \n\n"
         "Responses:\n"
         "- 200: the created time-off entries, one per date\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -124,6 +126,7 @@ async def create_time_off(
         request.type,
         request.no_deduction,
         request.note,
+        request.title,
     )
 
 
@@ -139,6 +142,7 @@ async def create_time_off(
         "date do not conflict. Its PTO affect entry always uses no_deduction 1 because "
         "remote work never deducts PTO. note is optional and is stored on that PTO affect "
         "entry; an omitted or null note is stored as an empty string.\n\n"
+        "title is optional and stored on each linked PTO affect entry; it defaults to Untitled. Null is rejected. \n\n"
         "Responses:\n"
         "- 200: the stored remote-work entry (id, date, type)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -161,7 +165,7 @@ async def create_remote_work(
     create_remote_work_service: CreateRemoteWorkServiceDep,
 ) -> RemoteWorkEntry:
     return await create_remote_work_service.handle(
-        user.id, request.date, request.type, request.note
+        user.id, request.date, request.type, request.note, request.title
     )
 
 
@@ -179,6 +183,7 @@ async def create_remote_work(
         "0 applies the normal PTO deduction rule and 1 marks an exception that skips "
         "deduction; it defaults to 0. note is optional and is stored on the linked PTO "
         "affect entry; an omitted or null note is stored as an empty string.\n\n"
+        "title is optional and stored on each linked PTO affect entry; it defaults to Untitled. Null is rejected. \n\n"
         "Responses:\n"
         "- 200: the stored work-time entry (id, date, time, type, duration)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -211,6 +216,7 @@ async def create_work_time(
         request.duration,
         request.no_deduction,
         request.note,
+        request.title,
     )
 
 
@@ -227,6 +233,7 @@ async def create_work_time(
         "exception that skips deduction; it defaults to 0. note is optional and is stored "
         "on the linked PTO affect entry; an omitted or null note is stored as an empty "
         "string.\n\n"
+        "title is optional and stored on each linked PTO affect entry; it defaults to Untitled. Null is rejected. \n\n"
         "Responses:\n"
         "- 200: the stored leave-work entry (id, date, start, end)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
@@ -255,6 +262,7 @@ async def create_leave_work(
         request.end,
         request.no_deduction,
         request.note,
+        request.title,
     )
 
 
@@ -263,6 +271,7 @@ async def create_leave_work(
     summary="PATCH /api/attendance/check-ins/{entry_id}",
     description=(
         "Update one check-ins entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "The linked PTO affect title is regenerated as Check-in on YYYY-MM-DD from the updated date. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
         "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
         "Date changes must stay in the original year; past-year entries cannot be edited. "
@@ -304,6 +313,7 @@ async def update_check_in(
     summary="PATCH /api/attendance/time-offs/{entry_id}",
     description=(
         "Update one time-offs entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
         "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
         "Date changes must stay in the original year; past-year entries cannot be edited. "
@@ -345,6 +355,7 @@ async def update_time_off(
     summary="PATCH /api/attendance/remote-works/{entry_id}",
     description=(
         "Update one remote-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
         "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
         "Date changes must stay in the original year; past-year entries cannot be edited. "
@@ -383,6 +394,7 @@ async def update_remote_work(
     summary="PATCH /api/attendance/work-times/{entry_id}",
     description=(
         "Update one work-times entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
         "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
         "Date changes must stay in the original year; past-year entries cannot be edited. "
@@ -425,6 +437,7 @@ async def update_work_time(
     summary="PATCH /api/attendance/leave-works/{entry_id}",
     description=(
         "Update one leave-works entry owned by the caller. Auth: bearer token via AuthenticatedGuardDep. "
+        "title replaces the linked PTO affect title; omission preserves it and null is rejected. "
         "Path: entry_id is the attendance entry UUID. Omitted body fields stay unchanged; null note clears it. "
         "Other supplied fields must not be null. Creation constraints apply to the merged entry. "
         "Date changes must stay in the original year; past-year entries cannot be edited. "

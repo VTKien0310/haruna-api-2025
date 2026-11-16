@@ -16,6 +16,7 @@ class UpdatePtoAffectEntryWriter:
             raise RuntimeError("Locked PTO affect entry disappeared")
         record.no_deduction = int(entry.no_deduction)
         record.note = entry.note
+        record.title = entry.title
         record.updated_at = datetime.now(timezone.utc)
         await db_session.flush()
 

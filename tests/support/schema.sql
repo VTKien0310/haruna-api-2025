@@ -48,6 +48,7 @@ CREATE TABLE pto_affect_entries (
     entry_type TEXT,
     no_deduction INTEGER NOT NULL DEFAULT 0,
     note TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT 'Untitled',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 );
@@ -97,6 +98,7 @@ CREATE TABLE work_time_entries (
 );
 
 CREATE TABLE workday_exceptions (
+    title TEXT NOT NULL DEFAULT 'Untitled',
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) NOT NULL,
     type INTEGER NOT NULL,
     date TEXT NOT NULL,

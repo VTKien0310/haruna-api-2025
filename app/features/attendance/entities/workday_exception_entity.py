@@ -20,6 +20,7 @@ class WorkdayException:
     type: WorkdayExceptionType
     date: date
     time: WorkdayExceptionTime
+    title: str
     created_at: datetime
     updated_at: datetime
 
@@ -27,6 +28,7 @@ class WorkdayException:
     def from_spb_data(cls, data: dict[str, str | int]) -> WorkdayException:
         return cls(
             id=str(data["id"]),
+            title=str(data["title"]),
             type=WorkdayExceptionType(int(data["type"])),
             date=date.fromisoformat(str(data["date"])),
             time=WorkdayExceptionTime(int(data["time"])),

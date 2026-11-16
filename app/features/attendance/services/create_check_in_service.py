@@ -75,6 +75,7 @@ class CreateCheckInService:
                 entry_type=PtoAffectEntryType.CHECK_IN,
                 no_deduction=no_deduction,
                 note=note,
+                title=f"Check-in on {day.isoformat()}",
             )
             await self.__deduct_pto_for_entry_service.handle(
                 db_session,

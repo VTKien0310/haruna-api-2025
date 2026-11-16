@@ -14,6 +14,10 @@ class UpdateRemoteWorkRequest(UpdateAttendanceRequest):
     type: RemoteWorkType | SkipJsonSchema[None] = Field(
         default=None, description="Replacement type; omitted values stay unchanged."
     )
+    title: str | SkipJsonSchema[None] = Field(
+        default=None,
+        description="Replacement PTO affect title; omit to preserve it. Null is rejected.",
+    )
     note: str | None = Field(
         default=None, description="Omit to preserve the note; null clears it."
     )

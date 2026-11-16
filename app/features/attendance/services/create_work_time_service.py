@@ -49,6 +49,7 @@ class CreateWorkTimeService:
         duration: int,
         no_deduction: int | None = None,
         note: str | None = None,
+        title: str = "Untitled",
     ) -> WorkTimeEntry:
         async with self.__db_session_manager.transaction() as db_session:
             affect_entries = await self.__find_pto_affect_entries_reader.handle(
@@ -87,6 +88,7 @@ class CreateWorkTimeService:
                 entry_type=PtoAffectEntryType.WORK_TIME,
                 no_deduction=no_deduction,
                 note=note,
+                title=title,
             )
             await self.__deduct_pto_for_entry_service.handle(
                 db_session, user_id, affect_entry, duration, day.year

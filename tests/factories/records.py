@@ -92,6 +92,7 @@ def insert_pto_affect_entry(
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "id": "pto-affect-1",
+        "title": "Untitled",
         "entry_id": "check-in-1",
         "entry_type": "check_in_entries",
         "no_deduction": 0,
@@ -188,6 +189,7 @@ def insert_workday_exception(
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "id": "workday-exception-1",
+        "title": "Untitled",
         "type": 1,
         "date": "2026-01-01",
         "time": 0,

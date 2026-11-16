@@ -132,6 +132,10 @@ class PtoAffectEntryRecord(SQLModel, table=True):
         default=0,
         sa_column=Column(SmallInteger, nullable=False, server_default="0"),
     )
+    title: str = Field(
+        default="Untitled",
+        sa_column=Column(Text, nullable=False, server_default="Untitled"),
+    )
     note: str = Field(
         default="",
         sa_column=Column(Text, nullable=False, server_default="''"),

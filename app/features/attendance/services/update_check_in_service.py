@@ -75,6 +75,7 @@ class UpdateCheckInService:
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,
+                title=f"Check-in on {updated.date.isoformat()}",
                 no_deduction=bool(request.no_deduction)
                 if "no_deduction" in request.model_fields_set
                 else affect.no_deduction,

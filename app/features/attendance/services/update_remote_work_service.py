@@ -75,6 +75,7 @@ class UpdateRemoteWorkService:
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,
+                title=request.title if request.title is not None else affect.title,
                 no_deduction=True,
                 note=(request.note or "")
                 if "note" in request.model_fields_set
@@ -98,7 +99,7 @@ class UpdateRemoteWorkService:
             {
                 key: value
                 for key, value in request.model_dump(exclude_unset=True).items()
-                if key not in {"note", "no_deduction"}
+                if key not in {"note", "no_deduction", "title"}
             }
         )
         try:

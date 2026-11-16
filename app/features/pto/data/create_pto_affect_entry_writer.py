@@ -17,6 +17,7 @@ class CreatePtoAffectEntryWriter:
         entry_type: PtoAffectEntryType,
         no_deduction: int | None = None,
         note: str | None = None,
+        title: str = "Untitled",
     ) -> PtoAffectEntry:
         no_deduction = (
             1
@@ -29,6 +30,7 @@ class CreatePtoAffectEntryWriter:
             entry_type=entry_type.value,
             no_deduction=no_deduction,
             note=note if note is not None else "",
+            title=title,
         )
         db_session.add(record)
         await db_session.flush()

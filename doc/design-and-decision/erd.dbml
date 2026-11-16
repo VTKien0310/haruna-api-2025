@@ -74,6 +74,7 @@ Table public.pto_affect_entries {
   entry_type "character varying" [null]
   no_deduction smallint [not null, default: `0`]
   note text [not null, default: '']
+  title text [not null, default: 'Untitled']
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
 
@@ -201,6 +202,7 @@ Table public.workday_exceptions {
   type smallint [not null]
   date date [not null]
   time smallint [not null]
+  title text [not null, default: 'Untitled']
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
 

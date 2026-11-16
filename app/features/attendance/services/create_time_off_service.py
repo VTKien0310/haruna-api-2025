@@ -46,6 +46,7 @@ class CreateTimeOffService:
         entry_type: TimeOffType,
         no_deduction: int | None = None,
         note: str | None = None,
+        title: str = "Untitled",
     ) -> list[TimeOffEntry]:
         end_date = end_date or start_date
         days = [
@@ -92,6 +93,7 @@ class CreateTimeOffService:
                     entry_type=PtoAffectEntryType.TIME_OFF,
                     no_deduction=no_deduction,
                     note=note,
+                    title=title,
                 )
                 await self.__deduct_pto_for_entry_service.handle(
                     db_session,

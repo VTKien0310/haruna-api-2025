@@ -18,6 +18,10 @@ class CreateLeaveWorkRequest(BaseModel):
             "Defaults to 0 when omitted."
         ),
     )
+    title: str = Field(
+        default="Untitled",
+        description="Title stored on each linked PTO affect entry; defaults to Untitled.",
+    )
     note: str | None = Field(
         default=None,
         description=(

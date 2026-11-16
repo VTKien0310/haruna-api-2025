@@ -472,3 +472,108 @@ def test_patch_openapi_contract(db_client: TestClient, route: str) -> None:
         envelope = response["content"]["application/json"]["schema"]
         assert set(envelope["properties"]) == {"ok", "content"}
         assert envelope["properties"]["ok"]["const"] == (status == "200")
+
+
+@pytest.mark.parametrize("route,body", [(case[0], case[1]) for case in CASES[1:]])
+@pytest.mark.parametrize("title", ["Clinic appointment", "Untitled", ""])
+async def test_titles_persist_without_changing_pto(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+    route: str,
+    body: dict[str, str | int | None],
+    title: str,
+) -> None:
+    await seed(db_session_manager, supabase)
+    payload = body | ({"title": title} if title != "Untitled" else {})
+    entry_id = create(db_client, route, payload)
+    path = f"/api/attendance/{route}/{entry_id}"
+    async with db_session_manager.session() as session:
+        assert (await session.exec(select(PtoAffectEntryRecord))).one().title == title
+        before = (await session.get(PtoBankRecord, TEST_PTO_BANK_ID)).model_dump()
+        ledger = [
+            row.model_dump()
+            for row in (await session.exec(select(PtoTransactionRecord))).all()
+        ]
+    for update in [{"title": "Updated title"}, {}, {"note": "Another note"}]:
+        response = db_client.patch(path, json=update, headers=HEADERS)
+        assert response.status_code == 200, response.text
+        assert "title" not in response.json()["content"]
+    assert (
+        db_client.patch(path, json={"title": None}, headers=HEADERS).status_code == 422
+    )
+    async with db_session_manager.session() as session:
+        assert (
+            await session.exec(select(PtoAffectEntryRecord))
+        ).one().title == "Updated title"
+        assert (
+            await session.get(PtoBankRecord, TEST_PTO_BANK_ID)
+        ).model_dump() == before
+        assert [
+            row.model_dump()
+            for row in (await session.exec(select(PtoTransactionRecord))).all()
+        ] == ledger
+
+
+@pytest.mark.parametrize("route,body", [(case[0], case[1]) for case in CASES[1:]])
+def test_create_rejects_null_titles(
+    db_client: TestClient,
+    supabase: SqliteSupabasePort,
+    route: str,
+    body: dict[str, str | int | None],
+) -> None:
+    supabase.auth().register("update-token", user_id=TEST_USER_ID)
+    response = db_client.post(
+        f"/api/attendance/{route}", json=body | {"title": None}, headers=HEADERS
+    )
+    assert response.status_code == 422
+
+
+async def test_check_in_title_tracks_date(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+) -> None:
+    await seed(db_session_manager, supabase)
+    entry_id = create(db_client, "check-ins", {"date": DAY, "time": "09:00"})
+    async with db_session_manager.session() as session:
+        assert (
+            await session.exec(select(PtoAffectEntryRecord))
+        ).one().title == f"Check-in on {DAY}"
+    new_date = date(date.today().year, 6, 16).isoformat()
+    path = f"/api/attendance/check-ins/{entry_id}"
+    response = db_client.patch(path, json={"date": new_date}, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert (
+        db_client.patch(
+            path, json={"title": "Client title"}, headers=HEADERS
+        ).status_code
+        == 422
+    )
+    async with db_session_manager.session() as session:
+        assert (
+            await session.exec(select(PtoAffectEntryRecord))
+        ).one().title == f"Check-in on {new_date}"
+
+
+async def test_time_off_range_shares_title(
+    db_client: TestClient,
+    db_session_manager: DbSessionManager,
+    supabase: SqliteSupabasePort,
+) -> None:
+    await seed(db_session_manager, supabase)
+    response = db_client.post(
+        "/api/attendance/time-offs",
+        json={
+            "start_date": DAY,
+            "end_date": date(date.today().year, 6, 17).isoformat(),
+            "type": 0,
+            "title": "Summer trip",
+        },
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    async with db_session_manager.session() as session:
+        affects = (await session.exec(select(PtoAffectEntryRecord))).all()
+        assert len(affects) == 3
+        assert all(affect.title == "Summer trip" for affect in affects)

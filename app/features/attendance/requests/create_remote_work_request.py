@@ -10,6 +10,10 @@ class CreateRemoteWorkRequest(BaseModel):
     type: RemoteWorkType = Field(
         description="0 for full day, 1 for morning, or 2 for afternoon."
     )
+    title: str = Field(
+        default="Untitled",
+        description="Title stored on each linked PTO affect entry; defaults to Untitled.",
+    )
     note: str | None = Field(
         default=None,
         description=(

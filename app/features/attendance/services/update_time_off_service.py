@@ -75,6 +75,7 @@ class UpdateTimeOffService:
             await self.__check_conflicts(session, user_id, updated)
             updated_affect = replace(
                 affect,
+                title=request.title if request.title is not None else affect.title,
                 no_deduction=bool(request.no_deduction)
                 if "no_deduction" in request.model_fields_set
                 else affect.no_deduction,
@@ -106,7 +107,7 @@ class UpdateTimeOffService:
             {
                 key: value
                 for key, value in request.model_dump(exclude_unset=True).items()
-                if key not in {"note", "no_deduction"}
+                if key not in {"note", "no_deduction", "title"}
             }
         )
         payload["start_date"] = payload.pop("date")

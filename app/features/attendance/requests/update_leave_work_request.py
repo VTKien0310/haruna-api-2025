@@ -20,6 +20,10 @@ class UpdateLeaveWorkRequest(UpdateAttendanceRequest):
     no_deduction: int | SkipJsonSchema[None] = Field(
         default=None, ge=0, le=1, description="0 applies deduction; 1 skips it."
     )
+    title: str | SkipJsonSchema[None] = Field(
+        default=None,
+        description="Replacement PTO affect title; omit to preserve it. Null is rejected.",
+    )
     note: str | None = Field(
         default=None, description="Omit to preserve the note; null clears it."
     )
