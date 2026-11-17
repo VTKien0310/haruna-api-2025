@@ -8,6 +8,9 @@ class _WrapResponseMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
 
+        if request.url.path == request.app.openapi_url:
+            return response
+
         if "application/json" in response.headers.get("content-type", ""):
             body = b""
             async for chunk in response.body_iterator:
