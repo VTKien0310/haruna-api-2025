@@ -6,12 +6,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import AppException
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReaderDep
-from app.features.attendance.entities import WorkdayExceptionTime, WorkdayExceptionType
+from app.features.attendance.entities import WorkdayExceptionTime
+from app.features.attendance.services import GetWorkingShiftsServiceDep
 
 
 class ValidateAttendanceWorkdayService:
-    def __init__(self, reader: FindWorkdayExceptionsByDatesReaderDep) -> None:
+    def __init__(
+        self,
+        reader: FindWorkdayExceptionsByDatesReaderDep,
+        get_working_shifts_service: GetWorkingShiftsServiceDep,
+    ) -> None:
         self.__reader = reader
+        self.__get_working_shifts_service = get_working_shifts_service
 
     async def handle(
         self,
@@ -41,21 +47,8 @@ class ValidateAttendanceWorkdayService:
 
         exceptions = await self.__reader.handle(session, dates)
         for day in dates:
-            working: list[bool] = []
-            for shift in periods:
-                matching = [
-                    exception
-                    for exception in exceptions
-                    if exception.date == day
-                    and exception.time in (WorkdayExceptionTime.FULL_DAY, shift)
-                ]
-                working.append(
-                    not any(e.type == WorkdayExceptionType.HOLIDAY for e in matching)
-                    and (
-                        day.weekday() < 5
-                        or any(e.type == WorkdayExceptionType.WORKDAY for e in matching)
-                    )
-                )
+            scheduled_shifts = self.__get_working_shifts_service.handle(day, exceptions)
+            working = [shift in scheduled_shifts for shift in periods]
             if not (all(working) if require_all else any(working)):
                 raise AppException(
                     status_code=409,

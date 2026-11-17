@@ -2,6 +2,7 @@ from datetime import date, datetime, time as dt_time, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     DateTime,
     Identity,
@@ -118,6 +119,21 @@ class LeaveWorkEntryRecord(SQLModel, table=True):
     date: date
     start: dt_time = Field(sa_column=Column(Time, nullable=False))
     end: dt_time = Field(sa_column=Column(Time, nullable=False))
+
+
+class MissCheckInEntryRecord(SQLModel, table=True):
+    metadata = model_common_metadata
+    __tablename__ = "miss_check_in_entries"
+    __table_args__ = (
+        CheckConstraint(
+            "penalty >= 0",
+            name="miss_check_in_entries_penalty_check",
+        ),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    date: date
+    penalty: int = Field(sa_column=Column(Integer, nullable=False))
 
 
 class PtoAffectEntryRecord(SQLModel, table=True):

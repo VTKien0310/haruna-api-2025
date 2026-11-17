@@ -1,6 +1,9 @@
 from app.features.attendance.data import LockAttendanceCalendarWriter
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
-from app.features.attendance.services import ValidateAttendanceWorkdayService
+from app.features.attendance.services import (
+    GetWorkingShiftsService,
+    ValidateAttendanceWorkdayService,
+)
 from datetime import date
 from uuid import uuid4
 
@@ -53,7 +56,8 @@ def _service(db_session_manager: DbSessionManager) -> CreateTimeOffService:
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -199,7 +203,8 @@ async def test_affect_insert_failure_rolls_back_time_off_entry(
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -233,7 +238,8 @@ async def test_full_day_time_off_creates_a_pto_transaction_per_day(
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -273,7 +279,8 @@ async def test_half_day_time_off_deducts_one_shift(
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )

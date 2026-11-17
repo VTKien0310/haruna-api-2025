@@ -12,6 +12,7 @@ class PtoTransactionCause(StrEnum):
     LEAVE_WORK_CREATE = "leave_work_entries_create"
     WORK_TIME_CREATE = "work_time_entries_create"
     REMOTE_WORK_CREATE = "remote_work_entries_create"
+    MISS_CHECK_IN_CREATE = "miss_check_in_entries_create"
 
     CHECK_IN_UPDATE = "check_in_entries_update"
     TIME_OFF_UPDATE = "time_off_entries_update"

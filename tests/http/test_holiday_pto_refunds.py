@@ -26,7 +26,7 @@ from tests.fakes.sqlite_supabase import SqliteSupabasePort
 BASE = "/api/attendance/workday-exceptions"
 HEADERS = {"Authorization": "Bearer calendar-manager"}
 TODAY = GetWorkdayExceptionTodayService().handle()
-DAY = TODAY + timedelta(days=(7 - TODAY.weekday()) % 7)
+DAY = TODAY
 OTHER_USER = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 CASES = [
     ("check-ins", {"time": "09:30"}, 90, {1}),
@@ -57,7 +57,9 @@ async def seed(
         for owner in owners:
             supabase.auth().register(str(owner), user_id=str(owner))
             session.add(
-                make_profile_record(id=uuid4(), user_id=owner, work_start_date=TODAY)
+                make_profile_record(
+                    id=uuid4(), user_id=owner, work_start_date=DAY - timedelta(days=7)
+                )
             )
             session.add(
                 make_pto_bank_record(
@@ -80,7 +82,7 @@ def create_entry(
     *,
     later: bool = False,
 ) -> str:
-    day = DAY + timedelta(days=7) if later else DAY
+    day = DAY - timedelta(days=7) if later else DAY
     response = client.post(
         f"/api/attendance/{route}",
         json={

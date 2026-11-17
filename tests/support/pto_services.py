@@ -2,8 +2,21 @@ from fastapi import status
 
 from app.core import AppException
 from app.database import DbSessionManager
+from app.features.attendance.data import (
+    CreateMissCheckInEntryWriter,
+    FindMissCheckInEntriesByOwnerAndDateRangeReader,
+    FindOwnedPtoAttendanceEntriesByDateRangeReader,
+    FindWorkdayExceptionsByDatesReader,
+    LockAttendanceCalendarWriter,
+)
+from app.features.attendance.services import (
+    CalculateMissCheckInPenaltyService,
+    FindMissingCheckInDaysService,
+    GetWorkingShiftsService,
+)
 from app.features.profile.data import FindProfileByUserIdReader
 from app.features.pto.data import (
+    CreatePtoAffectEntryWriter,
     CreatePtoBankWriter,
     CreatePtoTransactionWriter,
     FindPtoBankByOwnerAndYearReader,
@@ -14,7 +27,9 @@ from app.features.pto.entities import PtoBank
 from app.features.pto.services import (
     CalculatePtoBalanceDeductionService,
     DeductPtoForEntryService,
+    DeductPtoFromBankService,
     GetOrCreatePtoBankService,
+    SettleMissCheckInEntriesService,
 )
 
 
@@ -52,9 +67,46 @@ def make_deduct_pto_for_entry_service(
 ) -> DeductPtoForEntryService:
     return DeductPtoForEntryService(
         _StaticGetOrCreatePtoBankService(db_session_manager),  # type: ignore[arg-type]
-        CreatePtoTransactionWriter(),
-        UpdatePtoBankBalancesWriter(),
-        calculate_balance_deduction_service=CalculatePtoBalanceDeductionService(),
+        DeductPtoFromBankService(
+            CreatePtoTransactionWriter(),
+            UpdatePtoBankBalancesWriter(),
+            CalculatePtoBalanceDeductionService(),
+        ),
+    )
+
+
+def make_settle_miss_check_in_entries_service(
+    create_pto_transaction_writer: CreatePtoTransactionWriter | None = None,
+) -> SettleMissCheckInEntriesService:
+    return SettleMissCheckInEntriesService(
+        FindOwnedPtoAttendanceEntriesByDateRangeReader(),
+        FindWorkdayExceptionsByDatesReader(),
+        FindMissCheckInEntriesByOwnerAndDateRangeReader(),
+        CreateMissCheckInEntryWriter(),
+        CreatePtoAffectEntryWriter(),
+        DeductPtoFromBankService(
+            create_pto_transaction_writer or CreatePtoTransactionWriter(),
+            UpdatePtoBankBalancesWriter(),
+            CalculatePtoBalanceDeductionService(),
+        ),
+        FindMissingCheckInDaysService(
+            GetWorkingShiftsService(), CalculateMissCheckInPenaltyService()
+        ),
+    )
+
+
+def make_get_or_create_pto_bank_service(
+    db_session_manager: DbSessionManager,
+    create_pto_transaction_writer: CreatePtoTransactionWriter | None = None,
+) -> GetOrCreatePtoBankService:
+    return GetOrCreatePtoBankService(
+        FindPtoBankByOwnerAndYearReader(),
+        FindProfileByUserIdReader(),
+        CreatePtoBankWriter(),
+        UpdatePtoBankSeniorityBalanceWriter(),
+        LockAttendanceCalendarWriter(),
+        make_settle_miss_check_in_entries_service(create_pto_transaction_writer),
+        db_session_manager,
     )
 
 
@@ -62,14 +114,10 @@ def make_full_deduct_pto_for_entry_service(
     db_session_manager: DbSessionManager,
 ) -> DeductPtoForEntryService:
     return DeductPtoForEntryService(
-        GetOrCreatePtoBankService(
-            FindPtoBankByOwnerAndYearReader(),
-            FindProfileByUserIdReader(),
-            CreatePtoBankWriter(),
-            UpdatePtoBankSeniorityBalanceWriter(),
-            db_session_manager,
+        make_get_or_create_pto_bank_service(db_session_manager),
+        DeductPtoFromBankService(
+            CreatePtoTransactionWriter(),
+            UpdatePtoBankBalancesWriter(),
+            CalculatePtoBalanceDeductionService(),
         ),
-        CreatePtoTransactionWriter(),
-        UpdatePtoBankBalancesWriter(),
-        calculate_balance_deduction_service=CalculatePtoBalanceDeductionService(),
     )

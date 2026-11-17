@@ -1,5 +1,6 @@
 from .check_in_entry_entity import CheckInEntry as CheckInEntry
 from .leave_work_entry_entity import LeaveWorkEntry as LeaveWorkEntry
+from .miss_check_in_entry_entity import MissCheckInEntry as MissCheckInEntry
 from .remote_work_entry_entity import RemoteWorkEntry as RemoteWorkEntry
 from .remote_work_entry_entity import RemoteWorkType as RemoteWorkType
 from .time_off_entry_entity import TimeOffEntry as TimeOffEntry

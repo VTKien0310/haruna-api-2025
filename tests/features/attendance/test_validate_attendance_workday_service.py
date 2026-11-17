@@ -6,7 +6,10 @@ from app.core import AppException
 from app.database import DbSessionManager, WorkdayExceptionRecord
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
 from app.features.attendance.entities import WorkdayExceptionTime
-from app.features.attendance.services import ValidateAttendanceWorkdayService
+from app.features.attendance.services import (
+    GetWorkingShiftsService,
+    ValidateAttendanceWorkdayService,
+)
 
 
 @pytest.mark.parametrize(
@@ -54,7 +57,9 @@ async def test_shift_coverage(
                 date=date(2026, 1, 20), type=1, time=0, title="Other date"
             )
         )
-    service = ValidateAttendanceWorkdayService(FindWorkdayExceptionsByDatesReader())
+    service = ValidateAttendanceWorkdayService(
+        FindWorkdayExceptionsByDatesReader(), GetWorkingShiftsService()
+    )
     async with db_session_manager.session() as session:
         if allowed:
             await service.handle(

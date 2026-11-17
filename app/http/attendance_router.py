@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from app.features.attendance.services import (
     DeleteWorkdayExceptionServiceDep,
     GetWorkdayExceptionServiceDep,
     ListWorkdayExceptionsServiceDep,
+    ListMissingCheckInDaysServiceDep,
     UpdateCheckInServiceDep,
     UpdateLeaveWorkServiceDep,
     UpdateRemoteWorkServiceDep,
@@ -61,7 +63,8 @@ router = APIRouter(
         "Auth: bearer token via AuthenticatedGuardDep.\n\n"
         "Body: date is the calendar date of the arrival and time is the local clock time "
         "(HH:MM or HH:MM:SS). Seconds and microseconds are dropped and the time is stored as "
-        "HH:MM:00 in the company's local clock. Any calendar date and any clock time are stored. "
+        "HH:MM:00 in the company's local clock. Dates from January 1 of the current year through today are accepted; "
+        "past-year and future dates are rejected. Any clock time is stored. "
         "no_deduction is optional: 0 applies the normal PTO deduction rule and 1 marks an "
         "exception that skips deduction; it defaults to 0. note is optional and is stored "
         "on the linked PTO affect entry; an omitted or null note is stored as an empty "
@@ -70,15 +73,16 @@ router = APIRouter(
         "Responses:\n"
         "- 200: the stored check-in (id, date, time)\n"
         "- 401: unauthorized when the bearer token is missing or rejected\n"
-        "- 409: attendance_non_workday when the affected shift is not working; check_in_already_exists when this caller already has an arrival on that date\n"
+        "- 409: attendance_non_workday when the affected shift is not working; check_in_already_exists when this caller already has an arrival on that date; check_in_date_out_of_range when the date is not in the current-year through-today window\n"
         "- 422: validation_error when date or time is missing or unparseable, no_deduction "
         "is not 0 or 1, or note is not a string\n"
     ),
     responses={
         status.HTTP_409_CONFLICT: error_response(
-            "Non-workday shift or an arrival already exists on that date.",
+            "Non-workday shift, duplicate arrival, or date outside the current-year through-today range.",
             "attendance_non_workday",
             "check_in_already_exists",
+            "check_in_date_out_of_range",
         ),
     },
 )
@@ -90,6 +94,30 @@ async def create_check_in(
     return await create_check_in_service.handle(
         user.id, request.date, request.time, request.no_deduction, request.note
     )
+
+
+@router.get(
+    "/missed-check-ins",
+    summary="GET /api/attendance/missed-check-ins",
+    description=(
+        "GET /api/attendance/missed-check-ins. List this user's current-year dates with scheduled work "
+        "and at least one uncovered scheduled minute, from the later of January 1 or the employment start date "
+        "through yesterday. Weekday and workday-exception shifts are considered. A date is omitted when the user "
+        "has a check-in or all scheduled work is covered by remote work or recorded attendance/paid-absence entries; "
+        "overlapping intervals count once. Requires a bearer token. Responses: 200 list of ISO calendar dates; "
+        "401 unauthorized; 404 profile_not_found."
+    ),
+    responses={
+        status.HTTP_404_NOT_FOUND: error_response(
+            "The authenticated user's profile was not found.", "profile_not_found"
+        ),
+    },
+)
+async def list_missing_check_in_days(
+    user: CurrentAuthenticatedUserDep,
+    service: ListMissingCheckInDaysServiceDep,
+) -> list[date]:
+    return await service.handle(user.id)
 
 
 @router.post(

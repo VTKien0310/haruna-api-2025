@@ -20,7 +20,10 @@ from app.features.attendance.data import (
     FindWorkTimeEntriesByIdsAndDateReader,
 )
 from app.features.attendance.entities import WorkTimeShift, WorkTimeType
-from app.features.attendance.services import CreateWorkTimeService
+from app.features.attendance.services import (
+    CreateWorkTimeService,
+    GetWorkingShiftsService,
+)
 from app.features.pto.data import (
     CreatePtoAffectEntryWriter,
     FindPtoAffectEntriesByOwnerAndTypeReader,
@@ -49,7 +52,8 @@ def _service(db_session_manager: DbSessionManager) -> CreateWorkTimeService:
         NoopDeductPtoForEntryService(),
         db_session_manager,
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -223,7 +227,8 @@ async def test_affect_insert_failure_rolls_back_work_time_entry(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -262,7 +267,8 @@ async def test_work_time_creates_a_pto_transaction_for_its_duration(
         make_deduct_pto_for_entry_service(db_session_manager),
         db_session_manager,
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
