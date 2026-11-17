@@ -3,19 +3,12 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.features.pto.data import (
-    CreatePtoTransactionWriterDep,
-    UpdatePtoBankBalancesWriterDep,
-)
-from app.features.pto.entities import (
-    PtoAffectEntry,
-    PtoTransaction,
-    PtoTransactionCause,
-    PtoTransactionType,
-)
-from app.features.pto.services import CalculatePtoBalanceDeductionServiceDep
+from app.features.pto.entities import PtoAffectEntry, PtoTransaction
 from app.features.pto.services.get_or_create_pto_bank_service import (
     GetOrCreatePtoBankServiceDep,
+)
+from app.features.pto.services.deduct_pto_from_bank_service import (
+    DeductPtoFromBankServiceDep,
 )
 
 
@@ -23,14 +16,10 @@ class DeductPtoForEntryService:
     def __init__(
         self,
         get_or_create_pto_bank_service: GetOrCreatePtoBankServiceDep,
-        create_pto_transaction_writer: CreatePtoTransactionWriterDep,
-        update_pto_bank_balances_writer: UpdatePtoBankBalancesWriterDep,
-        calculate_balance_deduction_service: CalculatePtoBalanceDeductionServiceDep,
+        deduct_pto_from_bank_service: DeductPtoFromBankServiceDep,
     ) -> None:
         self.__get_or_create_pto_bank_service = get_or_create_pto_bank_service
-        self.__create_pto_transaction_writer = create_pto_transaction_writer
-        self.__update_pto_bank_balances_writer = update_pto_bank_balances_writer
-        self.__calculate_balance_deduction_service = calculate_balance_deduction_service
+        self.__deduct_pto_from_bank_service = deduct_pto_from_bank_service
 
     async def handle(
         self,
@@ -48,20 +37,10 @@ class DeductPtoForEntryService:
         bank = await self.__get_or_create_pto_bank_service.handle_with_session(
             db_session, user_id, year
         )
-        deducted_bank, exceed_bank_value = (
-            self.__calculate_balance_deduction_service.handle(bank, deduction_minutes)
+        result = await self.__deduct_pto_from_bank_service.handle(
+            db_session, bank, affect_entry, deduction_minutes
         )
-        await self.__update_pto_bank_balances_writer.handle(db_session, deducted_bank)
-
-        return await self.__create_pto_transaction_writer.handle(
-            db_session,
-            pto_bank_id=bank.id,
-            entry_id=affect_entry.id,
-            cause=PtoTransactionCause.from_entry_create(affect_entry.entry_type),
-            type=PtoTransactionType.DECREASE,
-            value=deduction_minutes,
-            exceed_bank_value=exceed_bank_value,
-        )
+        return result[1] if result is not None else None
 
 
 DeductPtoForEntryServiceDep = Annotated[DeductPtoForEntryService, Depends()]

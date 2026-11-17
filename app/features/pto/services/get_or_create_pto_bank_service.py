@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import AppException
 from app.database import DbSessionManagerDep
+from app.features.attendance.data import LockAttendanceCalendarWriterDep
 from app.features.profile.data import FindProfileByUserIdReaderDep
 from app.features.profile.entities import Profile
 from app.features.pto.constants import (
@@ -20,6 +21,9 @@ from app.features.pto.data import (
     UpdatePtoBankSeniorityBalanceWriterDep,
 )
 from app.features.pto.entities import PtoBank
+from app.features.pto.services.settle_miss_check_in_entries_service import (
+    SettleMissCheckInEntriesServiceDep,
+)
 
 
 class GetOrCreatePtoBankService:
@@ -29,12 +33,18 @@ class GetOrCreatePtoBankService:
         find_profile_reader: FindProfileByUserIdReaderDep,
         create_pto_bank_writer: CreatePtoBankWriterDep,
         update_seniority_balance_writer: UpdatePtoBankSeniorityBalanceWriterDep,
+        lock_attendance_calendar_writer: LockAttendanceCalendarWriterDep,
+        settle_miss_check_in_entries_service: SettleMissCheckInEntriesServiceDep,
         db_session_manager: DbSessionManagerDep,
     ) -> None:
         self.__find_pto_bank_reader = find_pto_bank_reader
         self.__find_profile_reader = find_profile_reader
         self.__create_pto_bank_writer = create_pto_bank_writer
         self.__update_seniority_balance_writer = update_seniority_balance_writer
+        self.__lock_attendance_calendar_writer = lock_attendance_calendar_writer
+        self.__settle_miss_check_in_entries_service = (
+            settle_miss_check_in_entries_service
+        )
         self.__db_session_manager = db_session_manager
 
     async def handle(self, user_id: str, year: int) -> PtoBank:
@@ -47,6 +57,7 @@ class GetOrCreatePtoBankService:
         user_id: str,
         year: int,
     ) -> PtoBank:
+        await self.__lock_attendance_calendar_writer.handle(db_session)
         current_year = date.today().year
         existing = await self.__find_pto_bank_reader.handle(db_session, user_id, year)
 
@@ -74,6 +85,13 @@ class GetOrCreatePtoBankService:
         last_year_bank = await self.__find_pto_bank_reader.handle(
             db_session, user_id, year - 1
         )
+        if last_year_bank is not None:
+            last_year_bank = await self.__settle_miss_check_in_entries_service.handle(
+                db_session,
+                user_id,
+                last_year_bank,
+                profile.work_start_date,
+            )
 
         extended_balance = (
             last_year_bank.annual_balance + last_year_bank.seniority_balance

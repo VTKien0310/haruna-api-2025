@@ -54,6 +54,14 @@ class CreateCheckInService:
         no_deduction: int | None = None,
         note: str | None = None,
     ) -> CheckInEntry:
+        today = date.today()
+        if not date(today.year, 1, 1) <= day <= today:
+            raise AppException(
+                status_code=status.HTTP_409_CONFLICT,
+                code="check_in_date_out_of_range",
+                message="Check-in date must be in the current year and not in the future",
+            )
+
         async with self.__db_session_manager.transaction() as db_session:
             await self.__lock_calendar.handle(db_session)
             await self.__validate_workday.handle(

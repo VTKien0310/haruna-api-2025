@@ -1,12 +1,16 @@
 from app.features.attendance.data import LockAttendanceCalendarWriter
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
-from app.features.attendance.services import ValidateAttendanceWorkdayService
-from datetime import date, time
+from app.features.attendance.services import (
+    GetWorkingShiftsService,
+    ValidateAttendanceWorkdayService,
+)
+from datetime import date, time, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from sqlmodel import select
 
+import app.features.attendance.services.create_check_in_service as service_module
 from app.core import AppException
 from app.database import (
     CheckInEntryRecord,
@@ -52,7 +56,8 @@ def _service(db_session_manager: DbSessionManager) -> CreateCheckInService:
         db_session_manager,
         calculate_penalty_service=CalculateCheckInPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -171,7 +176,8 @@ async def test_a_failing_affect_insert_rolls_back_the_check_in(
         db_session_manager,
         calculate_penalty_service=CalculateCheckInPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -205,7 +211,8 @@ async def test_late_check_in_creates_a_pto_transaction(
         db_session_manager,
         calculate_penalty_service=CalculateCheckInPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -238,6 +245,43 @@ async def test_on_time_check_in_creates_no_pto_transaction(
         transactions = (await session.exec(select(PtoTransactionRecord))).all()
 
     assert transactions == []
+
+
+@pytest.mark.parametrize(
+    "day",
+    [
+        date(date.today().year - 1, 12, 31),
+        date.today() + timedelta(days=1),
+    ],
+)
+async def test_rejects_check_in_dates_outside_the_current_year_window(
+    db_session_manager: DbSessionManager,
+    day: date,
+) -> None:
+    with pytest.raises(AppException) as error:
+        await _service(db_session_manager).handle(TEST_USER_ID, day, time(9, 0))
+
+    assert error.value.status_code == 409
+    assert error.value.code == "check_in_date_out_of_range"
+
+
+class _FixedDate(date):
+    @classmethod
+    def today(cls) -> date:
+        return cls(2026, 1, 12)
+
+
+async def test_allows_check_in_on_today(
+    db_session_manager: DbSessionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(service_module, "date", _FixedDate)
+
+    check_in = await _service(db_session_manager).handle(
+        TEST_USER_ID, date(2026, 1, 12), time(8, 0)
+    )
+
+    assert check_in.date == date(2026, 1, 12)
 
 
 async def test_check_in_with_no_deduction_creates_no_pto_transaction(

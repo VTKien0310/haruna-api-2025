@@ -1,6 +1,7 @@
 from .models import ProfileRecord as ProfileRecord
 from .models import CheckInEntryRecord as CheckInEntryRecord
 from .models import LeaveWorkEntryRecord as LeaveWorkEntryRecord
+from .models import MissCheckInEntryRecord as MissCheckInEntryRecord
 from .models import PtoAffectEntryRecord as PtoAffectEntryRecord
 from .models import PtoBankRecord as PtoBankRecord
 from .models import PtoTransactionRecord as PtoTransactionRecord

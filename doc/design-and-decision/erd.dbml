@@ -52,6 +52,16 @@ Table public.medias {
   }
 }
 
+Table public.miss_check_in_entries {
+  id uuid [not null, default: `gen_random_uuid()`]
+  date date [not null]
+  penalty integer [not null, note: 'Must be nonnegative']
+
+  indexes {
+    id [pk, name: 'miss_check_in_entries_pkey', type: btree]
+  }
+}
+
 Table public.profiles {
   id uuid [not null, default: `gen_random_uuid()`]
   user_id uuid [null]

@@ -1,6 +1,9 @@
 from app.features.attendance.data import LockAttendanceCalendarWriter
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
-from app.features.attendance.services import ValidateAttendanceWorkdayService
+from app.features.attendance.services import (
+    GetWorkingShiftsService,
+    ValidateAttendanceWorkdayService,
+)
 from datetime import date, time
 from uuid import UUID, uuid4
 
@@ -52,7 +55,8 @@ def _service(db_session_manager: DbSessionManager) -> CreateLeaveWorkService:
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -154,7 +158,8 @@ async def test_affect_insert_failure_rolls_back_leave_work_entry(
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -188,7 +193,8 @@ async def test_leave_work_creates_a_pto_transaction_for_the_interval(
         db_session_manager,
         calculate_penalty_service=CalculateLeaveWorkPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )

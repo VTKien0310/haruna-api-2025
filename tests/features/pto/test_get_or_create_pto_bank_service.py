@@ -2,36 +2,37 @@ from datetime import date, datetime
 from uuid import UUID
 
 import pytest
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 
 from app.core import AppException
-from app.database import DbSessionManager, PtoBankRecord
-from app.features.profile.data import FindProfileByUserIdReader
-from app.features.pto.constants import MINUTES_PER_WORK_DAY
-from app.features.pto.data import (
-    CreatePtoBankWriter,
-    FindPtoBankByOwnerAndYearReader,
-    UpdatePtoBankSeniorityBalanceWriter,
+from app.database import (
+    DbSessionManager,
+    MissCheckInEntryRecord,
+    PtoAffectEntryRecord,
+    PtoBankRecord,
+    PtoTransactionRecord,
+    TimeOffEntryRecord,
+    WorkdayExceptionRecord,
 )
+from app.features.pto.constants import MINUTES_PER_WORK_DAY
+from app.features.pto.data import CreatePtoTransactionWriter
+from app.features.pto.entities import PtoAffectEntryType
 from app.features.pto.services import GetOrCreatePtoBankService
+from app.features.attendance.entities import TimeOffType, WorkdayExceptionTime
 from tests.factories.database_records import (
     TEST_PTO_BANK_ID,
     TEST_USER_ID,
     make_profile_record,
     make_pto_bank_record,
 )
+from tests.support.pto_services import make_get_or_create_pto_bank_service
 
 PREVIOUS_YEAR_BANK_ID = UUID("44444444-4444-4444-8444-444444444444")
+OTHER_USER_ID = UUID("55555555-5555-4555-8555-555555555555")
 
 
 def _service(db_session_manager: DbSessionManager) -> GetOrCreatePtoBankService:
-    return GetOrCreatePtoBankService(
-        FindPtoBankByOwnerAndYearReader(),
-        FindProfileByUserIdReader(),
-        CreatePtoBankWriter(),
-        UpdatePtoBankSeniorityBalanceWriter(),
-        db_session_manager,
-    )
+    return make_get_or_create_pto_bank_service(db_session_manager)
 
 
 async def _add_records(
@@ -55,6 +56,21 @@ def _work_start_years_ago(years: int) -> date:
         return today.replace(year=today.year - years)
     except ValueError:  # February 29
         return today.replace(year=today.year - years, day=28)
+
+
+def _previous_year_last_day() -> date:
+    return date(date.today().year - 1, 12, 31)
+
+
+def _workday_exception(day: date) -> WorkdayExceptionRecord | None:
+    if day.weekday() < 5:
+        return None
+    return WorkdayExceptionRecord(
+        date=day,
+        type=0,
+        time=WorkdayExceptionTime.FULL_DAY,
+        title="Scheduled workday",
+    )
 
 
 async def test_creates_current_year_bank_with_default_balances(
@@ -102,7 +118,7 @@ async def test_creates_bank_with_extended_balance_from_last_year(
     current_year = date.today().year
     await _add_records(
         db_session_manager,
-        make_profile_record(),
+        make_profile_record(work_start_date=date(current_year, 1, 1)),
         make_pto_bank_record(
             id=PREVIOUS_YEAR_BANK_ID,
             year=current_year - 1,
@@ -120,6 +136,213 @@ async def test_creates_bank_with_extended_balance_from_last_year(
     stored = await _get_bank(db_session_manager, UUID(bank.id))
     assert stored is not None
     assert stored.extended_balance == stored.original_extended_balance == 150
+
+
+async def test_settles_previous_year_before_carryover_and_is_idempotent(
+    db_session_manager: DbSessionManager,
+) -> None:
+    current_year = date.today().year
+    missed_day = _previous_year_last_day()
+    records: list[SQLModel] = [
+        make_profile_record(work_start_date=missed_day),
+        make_pto_bank_record(
+            id=PREVIOUS_YEAR_BANK_ID,
+            year=current_year - 1,
+            annual_balance=700,
+            extended_balance=120,
+            seniority_balance=100,
+        ),
+    ]
+    other_missed_entry = MissCheckInEntryRecord(date=missed_day, penalty=480)
+    records.extend(
+        [
+            other_missed_entry,
+            PtoAffectEntryRecord(
+                owner_id=OTHER_USER_ID,
+                entry_id=other_missed_entry.id,
+                entry_type=PtoAffectEntryType.MISS_CHECK_IN.value,
+                no_deduction=0,
+                title="Other user's missed check-in",
+                note="",
+            ),
+        ]
+    )
+    exception = _workday_exception(missed_day)
+    if exception is not None:
+        records.append(exception)
+    await _add_records(db_session_manager, *records)
+
+    service = _service(db_session_manager)
+    bank = await service.handle(TEST_USER_ID, current_year)
+    await service.handle(TEST_USER_ID, current_year)
+
+    assert bank.extended_balance == 440
+    assert bank.original_extended_balance == 440
+    previous_bank = await _get_bank(db_session_manager, PREVIOUS_YEAR_BANK_ID)
+    assert previous_bank is not None
+    assert (
+        previous_bank.extended_balance,
+        previous_bank.seniority_balance,
+        previous_bank.annual_balance,
+    ) == (0, 0, 440)
+    async with db_session_manager.session() as session:
+        missed_entries = (await session.exec(select(MissCheckInEntryRecord))).all()
+        affect_entries = (
+            await session.exec(
+                select(PtoAffectEntryRecord).where(
+                    PtoAffectEntryRecord.entry_type
+                    == PtoAffectEntryType.MISS_CHECK_IN.value
+                )
+            )
+        ).all()
+        transactions = (
+            await session.exec(
+                select(PtoTransactionRecord).where(
+                    PtoTransactionRecord.cause == "miss_check_in_entries_create"
+                )
+            )
+        ).all()
+
+    current_affects = [
+        affect for affect in affect_entries if affect.owner_id == UUID(TEST_USER_ID)
+    ]
+    assert len(missed_entries) == len(affect_entries) == 2
+    assert len(current_affects) == len(transactions) == 1
+    current_entry = next(
+        entry for entry in missed_entries if entry.id == current_affects[0].entry_id
+    )
+    assert current_entry.date == missed_day
+    assert current_entry.penalty == 480
+    assert current_affects[0].title == f"Missed check-in on {missed_day.isoformat()}"
+    assert transactions[0].entry_id == current_affects[0].id
+    assert transactions[0].value == 480
+    assert transactions[0].exceed_bank_value == 0
+
+
+async def test_settlement_deducts_only_minutes_uncovered_by_recorded_time_off(
+    db_session_manager: DbSessionManager,
+) -> None:
+    current_year = date.today().year
+    missed_day = _previous_year_last_day()
+    time_off = TimeOffEntryRecord(date=missed_day, type=TimeOffType.MORNING)
+    records: list[SQLModel] = [
+        make_profile_record(work_start_date=missed_day),
+        make_pto_bank_record(
+            id=PREVIOUS_YEAR_BANK_ID,
+            year=current_year - 1,
+            annual_balance=1_000,
+            seniority_balance=0,
+            extended_balance=0,
+        ),
+        time_off,
+        PtoAffectEntryRecord(
+            owner_id=UUID(TEST_USER_ID),
+            entry_id=time_off.id,
+            entry_type=PtoAffectEntryType.TIME_OFF.value,
+            no_deduction=0,
+            title="Morning time off",
+            note="",
+        ),
+    ]
+    exception = _workday_exception(missed_day)
+    if exception is not None:
+        records.append(exception)
+    await _add_records(db_session_manager, *records)
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, current_year)
+
+    assert bank.extended_balance == 760
+    async with db_session_manager.session() as session:
+        missed_entry = (await session.exec(select(MissCheckInEntryRecord))).one()
+        transaction = (
+            await session.exec(
+                select(PtoTransactionRecord).where(
+                    PtoTransactionRecord.cause == "miss_check_in_entries_create"
+                )
+            )
+        ).one()
+
+    assert missed_entry.penalty == transaction.value == 240
+
+
+async def test_settlement_is_skipped_without_a_previous_year_bank(
+    db_session_manager: DbSessionManager,
+) -> None:
+    current_year = date.today().year
+    missed_day = _previous_year_last_day()
+    records: list[SQLModel] = [make_profile_record(work_start_date=missed_day)]
+    exception = _workday_exception(missed_day)
+    if exception is not None:
+        records.append(exception)
+    await _add_records(db_session_manager, *records)
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, current_year)
+
+    assert bank.extended_balance == 0
+    async with db_session_manager.session() as session:
+        missed_entries = (await session.exec(select(MissCheckInEntryRecord))).all()
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert missed_entries == []
+    assert transactions == []
+
+
+async def test_settlement_rolls_back_missed_entry_and_balance_when_transaction_fails(
+    db_session_manager: DbSessionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_year = date.today().year
+    missed_day = _previous_year_last_day()
+    records: list[SQLModel] = [
+        make_profile_record(work_start_date=missed_day),
+        make_pto_bank_record(
+            id=PREVIOUS_YEAR_BANK_ID,
+            year=current_year - 1,
+            annual_balance=700,
+            extended_balance=120,
+            seniority_balance=100,
+        ),
+    ]
+    exception = _workday_exception(missed_day)
+    if exception is not None:
+        records.append(exception)
+    await _add_records(db_session_manager, *records)
+
+    async def fail_transaction_writer(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("transaction writer failed")
+
+    monkeypatch.setattr(CreatePtoTransactionWriter, "handle", fail_transaction_writer)
+    with pytest.raises(RuntimeError, match="transaction writer failed"):
+        await _service(db_session_manager).handle(TEST_USER_ID, current_year)
+
+    previous_bank = await _get_bank(db_session_manager, PREVIOUS_YEAR_BANK_ID)
+    assert previous_bank is not None
+    assert (
+        previous_bank.extended_balance,
+        previous_bank.seniority_balance,
+        previous_bank.annual_balance,
+    ) == (120, 100, 700)
+    async with db_session_manager.session() as session:
+        banks = (
+            await session.exec(
+                select(PtoBankRecord).where(PtoBankRecord.year == current_year)
+            )
+        ).all()
+        missed_entries = (await session.exec(select(MissCheckInEntryRecord))).all()
+        affects = (
+            await session.exec(
+                select(PtoAffectEntryRecord).where(
+                    PtoAffectEntryRecord.entry_type
+                    == PtoAffectEntryType.MISS_CHECK_IN.value
+                )
+            )
+        ).all()
+        transactions = (await session.exec(select(PtoTransactionRecord))).all()
+
+    assert banks == []
+    assert missed_entries == []
+    assert affects == []
+    assert transactions == []
 
 
 async def test_creates_bank_with_seniority_capped_at_eight_days(

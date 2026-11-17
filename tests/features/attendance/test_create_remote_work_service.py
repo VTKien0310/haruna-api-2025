@@ -1,6 +1,9 @@
 from app.features.attendance.data import LockAttendanceCalendarWriter
 from app.features.attendance.data import FindWorkdayExceptionsByDatesReader
-from app.features.attendance.services import ValidateAttendanceWorkdayService
+from app.features.attendance.services import (
+    GetWorkingShiftsService,
+    ValidateAttendanceWorkdayService,
+)
 from datetime import date
 from uuid import UUID, uuid4
 
@@ -46,7 +49,8 @@ def _service(db_session_manager: DbSessionManager) -> CreateRemoteWorkService:
         CreatePtoAffectEntryWriter(),
         db_session_manager,
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -145,7 +149,8 @@ async def test_time_off_does_not_conflict_with_remote_work(
         db_session_manager,
         calculate_penalty_service=CalculateTimeOffPenaltyService(),
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )
@@ -179,7 +184,8 @@ async def test_affect_insert_failure_rolls_back_remote_work_entry(
         _FailingAffectWriter(),
         db_session_manager,
         validate_workday=ValidateAttendanceWorkdayService(
-            FindWorkdayExceptionsByDatesReader()
+            FindWorkdayExceptionsByDatesReader(),
+            GetWorkingShiftsService(),
         ),
         lock_calendar=LockAttendanceCalendarWriter(),
     )

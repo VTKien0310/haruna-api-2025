@@ -11,6 +11,7 @@ class PtoAffectEntryType(StrEnum):
     LEAVE_WORK = "leave_work_entries"
     WORK_TIME = "work_time_entries"
     REMOTE_WORK = "remote_work_entries"
+    MISS_CHECK_IN = "miss_check_in_entries"
 
 
 @dataclass
