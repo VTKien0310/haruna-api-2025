@@ -7,7 +7,7 @@ from .core import (
     init_long_read_http_client,
 )
 from .database import init_db_session_manager
-from .http import router_registry
+from .http import api_router_registry, app_router_registry
 
 
 @asynccontextmanager
@@ -25,4 +25,8 @@ async def lifespan_handler(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
-    return bootstrap_application(router_registry, lifespan_handler=lifespan_handler)
+    return bootstrap_application(
+        api_router_registry=api_router_registry,
+        app_router_registry=app_router_registry,
+        lifespan_handler=lifespan_handler,
+    )

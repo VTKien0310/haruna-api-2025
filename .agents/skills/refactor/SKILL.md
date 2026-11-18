@@ -237,7 +237,8 @@ async def create_item(
 ```
 
 - No business logic — delegate everything to services
-- Register the router in the app factory's `router_registry`
+- Register prefixed routers in the app factory's `api_router_registry`; top-level routers (for example health
+  checks) belong in `app_router_registry`
 
 ### AppException (domain errors)
 

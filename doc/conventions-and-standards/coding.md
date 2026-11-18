@@ -22,9 +22,10 @@
 # **Conventions**
 
 - Must keep the HTTP, feature, port, and core layers separate:
-    - `app/http/` — thin routers: parse the request, delegate, and return a plain value. Register each `APIRouter`
-      in `router_registry` (`app/http/__init__.py`). `bootstrap_application` mounts them under `settings.API_PREFIX`
-      (`/api`)
+    - `app/http/` — thin routers: parse the request, delegate, and return a plain value. Register each prefixed
+      `APIRouter` in `api_router_registry` (`app/http/__init__.py`); `bootstrap_application` mounts them under
+      `settings.API_PREFIX` (`/api`). Use `app_router_registry` for top-level routes that mount at the root (for
+      example liveness checks)
     - `app/features/` — domain logic, one package per feature (`auth`, `media`, `translation`), using `data/`,
       `entities/`, `guards/`, `requests/`, and `services/` as needed
     - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`)

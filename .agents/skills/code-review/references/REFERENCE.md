@@ -60,8 +60,9 @@ are stricter or newer than this checklist.
 
 Keep HTTP, feature, port, and core layers separate:
 
-* `app/http/` — thin routers. Parse the request, delegate, and return a plain value. Register each `APIRouter` in
-  `router_registry` (`app/http/__init__.py`). `bootstrap_application` mounts them under `settings.API_PREFIX`.
+* `app/http/` — thin routers. Parse the request, delegate, and return a plain value. Register each prefixed
+  `APIRouter` in `api_router_registry` (`app/http/__init__.py`); `bootstrap_application` mounts them under
+  `settings.API_PREFIX`. Use `app_router_registry` for top-level routers that mount at the root.
 * `app/features/<feature>/` — domain logic, one package per feature (`auth`, `media`, `translation`, `attendance`,
   `pto`, `profile`), using `data/`, `entities/`, `guards/`, `requests/`, and `services/` as needed.
 * `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`).
@@ -136,8 +137,8 @@ name), the review notes that the pull request must say so. Do not open or edit t
   read `os.environ` in feature, HTTP, or port code, other than the existing environment-file switch inside
   `app/core/config.py`.
 * Do not hardcode a secret, token, endpoint, or other value when a settings field already exists.
-* Register routers only from `router_registry` and mount them only from `bootstrap_application`. Do not attach routers
-  from request-handling code.
+* Register routers only from `api_router_registry` or `app_router_registry` and mount them only from
+  `bootstrap_application`. Do not attach routers from request-handling code.
 * Shared `httpx` clients on `app.state` are process-wide transports. Do not store user data or credentials on them.
 
 ### 10. Application Tests
