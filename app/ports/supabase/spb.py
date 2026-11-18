@@ -33,6 +33,12 @@ class SupabasePort:
     def table_translation_history(self):
         return self.__client.table("translation_histories")
 
+    def table_profile(self):
+        return self.__client.table("profiles")
+
+    def table_pto_bank(self):
+        return self.__client.table("pto_banks")
+
     def auth(self):
         return self.__client.auth
 

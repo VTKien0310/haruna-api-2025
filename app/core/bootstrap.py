@@ -3,12 +3,14 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .error import register_error_handlers
+from .openapi import apply_openapi_schema
 from .response import apply_global_response_interface
 
 
 def bootstrap_application(
-    router_registry: List[APIRouter],
+    api_router_registry: List[APIRouter],
     lifespan_handler: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
+    app_router_registry: List[APIRouter] | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
@@ -23,7 +25,8 @@ def bootstrap_application(
     register_error_handlers(app)
 
     _config_cors(app)
-    _load_routes(app, router_registry)
+    _load_routes(app, api_router_registry, app_router_registry)
+    apply_openapi_schema(app)
 
     return app
 
@@ -38,6 +41,12 @@ def _config_cors(app: FastAPI) -> None:
     )
 
 
-def _load_routes(app: FastAPI, router_registry: List[APIRouter]) -> None:
-    for router in router_registry:
+def _load_routes(
+    app: FastAPI,
+    api_router_registry: List[APIRouter],
+    app_router_registry: List[APIRouter] | None,
+) -> None:
+    for router in api_router_registry:
         app.include_router(router, prefix=settings.API_PREFIX)
+    for router in app_router_registry or []:
+        app.include_router(router)

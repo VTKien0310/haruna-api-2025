@@ -4,7 +4,7 @@
 
 ```
 app/
-├── __init__.py              # App factory: create_app(), router_registry, lifespan
+├── __init__.py              # App factory: create_app(), api_router_registry, app_router_registry, lifespan
 ├── main.py                  # Entrypoint: uvicorn runner
 ├── core/
 │   ├── config.py            # pydantic-settings: Settings class, global `settings` instance
@@ -54,8 +54,10 @@ Application-wide infrastructure. Not domain-specific.
 
 - **`config.py`**: `pydantic-settings` `Settings` class reads environment variables. All secrets come from here — no
   hardcoded values. A module-level `settings` singleton is instantiated once and imported everywhere.
-- **`bootstrap.py`**: `bootstrap_application(router_registry, lifespan_handler)` creates and wires the FastAPI app: CORS
-  middleware, error handlers, response middleware, and all routers.
+- **`bootstrap.py`**: `bootstrap_application(api_router_registry, lifespan_handler, app_router_registry=None)`
+  creates and wires the FastAPI app: CORS middleware, error handlers, response middleware, and all routers.
+  Routers in `api_router_registry` are mounted under `API_PREFIX` (`/api`); routers in `app_router_registry` are
+  mounted at the root.
 - **`error.py`**: `AppException(status_code, code, message)` extends `HTTPException` with a semantic `code` field.
   Exception handlers convert to `{"error": {"code", "message", "path"}}` JSON. Use `AppException` for domain errors,
   `HTTPException` for standard HTTP errors.
@@ -97,7 +99,8 @@ FastAPI router definitions only. No business logic.
 
 - One `APIRouter` per domain, in its own file
 - Route handlers: inject dependencies, delegate to services, return results
-- Register routers in `app/__init__.py` via `router_registry`
+- Register prefixed routers in `app/__init__.py` via `api_router_registry`. Top-level routers belong in
+  `app_router_registry`
 
 ### `ports/`
 

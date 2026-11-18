@@ -11,9 +11,35 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.12.0",
     "supabase>=2.30.0",
+    "sqlmodel>=0.0.33",
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0",
 ]
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.21.0",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "pytest-cov>=6.0",
     "ruff>=0.14.10",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+include_namespace_packages = true
+
+[tool.coverage.html]
+directory = "coverage"
+
+[tool.coverage.lcov]
+output = "coverage/lcov.info"

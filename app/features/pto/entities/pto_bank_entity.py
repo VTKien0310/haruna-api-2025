@@ -1,0 +1,51 @@
+from dataclasses import dataclass
+from datetime import datetime
+
+from app.database import PtoBankRecord
+
+
+@dataclass
+class PtoBank:
+    id: str
+    owner_id: str
+    annual_balance: int
+    extended_balance: int
+    seniority_balance: int
+    original_annual_balance: int
+    original_extended_balance: int
+    original_seniority_balance: int
+    year: int
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_db_record(cls, record: PtoBankRecord) -> PtoBank:
+        return cls(
+            id=str(record.id),
+            owner_id=str(record.owner_id),
+            annual_balance=record.annual_balance,
+            extended_balance=record.extended_balance,
+            seniority_balance=record.seniority_balance,
+            original_annual_balance=record.original_annual_balance,
+            original_extended_balance=record.original_extended_balance,
+            original_seniority_balance=record.original_seniority_balance,
+            year=record.year,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @classmethod
+    def from_spb_data(cls, data: dict[str, str | int]) -> PtoBank:
+        return cls(
+            id=str(data["id"]),
+            owner_id=str(data["owner_id"]),
+            annual_balance=int(data["annual_balance"]),
+            extended_balance=int(data["extended_balance"]),
+            seniority_balance=int(data["seniority_balance"]),
+            original_annual_balance=int(data["original_annual_balance"]),
+            original_extended_balance=int(data["original_extended_balance"]),
+            original_seniority_balance=int(data["original_seniority_balance"]),
+            year=int(data["year"]),
+            created_at=datetime.fromisoformat(str(data["created_at"])),
+            updated_at=datetime.fromisoformat(str(data["updated_at"])),
+        )

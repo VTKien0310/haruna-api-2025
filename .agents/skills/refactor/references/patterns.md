@@ -245,9 +245,13 @@ Registering in the app factory:
 from app.http.item_router import router as item_router
 from app.http.key_router import router as key_router
 
-router_registry = [item_router, key_router]
+api_router_registry = [item_router, key_router]
 
-app = bootstrap_application(router_registry, lifespan_handler)
+app = bootstrap_application(
+    api_router_registry=api_router_registry,
+    app_router_registry=[health_router],  # optional: top-level routes like liveness checks
+    lifespan_handler=lifespan_handler,
+)
 ```
 
 ---

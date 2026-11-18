@@ -1,0 +1,115 @@
+from datetime import date
+from typing import Annotated
+
+from fastapi import Depends, status
+
+from app.core import AppException
+from app.database import DbSessionManagerDep
+from app.features.attendance.data import (
+    CreateWorkTimeEntryWriterDep,
+    FindWorkTimeEntriesByIdsAndDateReaderDep,
+    LockAttendanceCalendarWriterDep,
+)
+from app.features.attendance.entities import (
+    WorkdayExceptionTime,
+    WorkTimeEntry,
+    WorkTimeShift,
+    WorkTimeType,
+)
+from app.features.attendance.services import ValidateAttendanceWorkdayServiceDep
+from app.features.pto.constants import SHIFT_MINUTES
+from app.features.pto.data import (
+    CreatePtoAffectEntryWriterDep,
+    FindPtoAffectEntriesByOwnerAndTypeReaderDep,
+)
+from app.features.pto.entities import PtoAffectEntryType
+from app.features.pto.services import DeductPtoForEntryServiceDep
+
+
+class CreateWorkTimeService:
+    def __init__(
+        self,
+        find_pto_affect_entries_reader: FindPtoAffectEntriesByOwnerAndTypeReaderDep,
+        find_work_time_entries_reader: FindWorkTimeEntriesByIdsAndDateReaderDep,
+        create_work_time_entry_writer: CreateWorkTimeEntryWriterDep,
+        create_pto_affect_entry_writer: CreatePtoAffectEntryWriterDep,
+        deduct_pto_for_entry_service: DeductPtoForEntryServiceDep,
+        db_session_manager: DbSessionManagerDep,
+        validate_workday: ValidateAttendanceWorkdayServiceDep,
+        lock_calendar: LockAttendanceCalendarWriterDep,
+    ) -> None:
+        self.__find_pto_affect_entries_reader = find_pto_affect_entries_reader
+        self.__find_work_time_entries_reader = find_work_time_entries_reader
+        self.__create_work_time_entry_writer = create_work_time_entry_writer
+        self.__create_pto_affect_entry_writer = create_pto_affect_entry_writer
+        self.__deduct_pto_for_entry_service = deduct_pto_for_entry_service
+        self.__validate_workday = validate_workday
+        self.__lock_calendar = lock_calendar
+        self.__db_session_manager = db_session_manager
+
+    async def handle(
+        self,
+        user_id: str,
+        day: date,
+        shift: WorkTimeShift,
+        entry_type: WorkTimeType,
+        duration: int,
+        no_deduction: int | None = None,
+        note: str | None = None,
+        title: str = "Untitled",
+    ) -> WorkTimeEntry:
+        async with self.__db_session_manager.transaction() as db_session:
+            await self.__lock_calendar.handle(db_session)
+            await self.__validate_workday.handle(
+                db_session,
+                [day],
+                WorkdayExceptionTime.MORNING
+                if shift == WorkTimeShift.MORNING
+                else WorkdayExceptionTime.AFTERNOON,
+            )
+            affect_entries = await self.__find_pto_affect_entries_reader.handle(
+                db_session, user_id, PtoAffectEntryType.WORK_TIME
+            )
+            entry_ids = [
+                entry.entry_id for entry in affect_entries if entry.entry_id is not None
+            ]
+            existing_entries = await self.__find_work_time_entries_reader.handle(
+                db_session, entry_ids, day
+            )
+            shift_entries = [entry for entry in existing_entries if entry.time == shift]
+            if any(entry.type == entry_type for entry in shift_entries):
+                raise AppException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    code="work_time_already_exists",
+                    message=f"Work time on '{day}' already exists",
+                )
+            if (
+                sum(entry.duration for entry in shift_entries) + duration
+                >= SHIFT_MINUTES
+            ):
+                raise AppException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    code="work_time_overlaps",
+                    message=f"Work time on '{day}' overlaps the whole shift",
+                )
+
+            work_time = await self.__create_work_time_entry_writer.handle(
+                db_session, day, shift, entry_type, duration
+            )
+            affect_entry = await self.__create_pto_affect_entry_writer.handle(
+                db_session,
+                owner_id=user_id,
+                entry_id=work_time.id,
+                entry_type=PtoAffectEntryType.WORK_TIME,
+                no_deduction=no_deduction,
+                note=note,
+                title=title,
+            )
+            await self.__deduct_pto_for_entry_service.handle(
+                db_session, user_id, affect_entry, duration, day.year
+            )
+
+            return work_time
+
+
+CreateWorkTimeServiceDep = Annotated[CreateWorkTimeService, Depends()]
