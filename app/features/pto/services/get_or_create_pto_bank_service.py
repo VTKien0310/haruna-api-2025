@@ -121,12 +121,32 @@ class GetOrCreatePtoBankService:
     ) -> PtoBank:
         profile = await self.__get_profile(db_session, user_id)
         target = self.__seniority_target(profile, date.today())
+        seniority_balance = bank.seniority_balance
+        original_seniority_balance = bank.original_seniority_balance
 
-        if bank.seniority_balance >= target:
-            return bank
+        if seniority_balance > original_seniority_balance:
+            original_seniority_balance = seniority_balance
 
-        await self.__update_seniority_balance_writer.handle(db_session, bank.id, target)
-        return replace(bank, seniority_balance=target)
+        if target <= original_seniority_balance:
+            if original_seniority_balance == bank.original_seniority_balance:
+                return bank
+            await self.__update_seniority_balance_writer.handle(
+                db_session,
+                bank.id,
+                seniority_balance,
+                original_seniority_balance,
+            )
+            return replace(bank, original_seniority_balance=original_seniority_balance)
+
+        seniority_balance += target - original_seniority_balance
+        await self.__update_seniority_balance_writer.handle(
+            db_session, bank.id, seniority_balance, target
+        )
+        return replace(
+            bank,
+            seniority_balance=seniority_balance,
+            original_seniority_balance=target,
+        )
 
     async def __get_profile(self, db_session: AsyncSession, user_id: str) -> Profile:
         profile = await self.__find_profile_reader.handle(db_session, user_id)

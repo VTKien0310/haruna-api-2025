@@ -14,12 +14,14 @@ class UpdatePtoBankSeniorityBalanceWriter:
         db_session: AsyncSession,
         bank_id: str,
         seniority_balance: int,
+        original_seniority_balance: int,
     ) -> None:
         record = await db_session.get(PtoBankRecord, UUID(bank_id))
         if record is None:
             return
 
         record.seniority_balance = seniority_balance
+        record.original_seniority_balance = original_seniority_balance
         record.updated_at = datetime.now(timezone.utc)
         await db_session.flush()
 
