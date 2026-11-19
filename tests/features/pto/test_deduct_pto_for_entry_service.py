@@ -11,6 +11,7 @@ from app.database import (
     PtoBankRecord,
     PtoTransactionRecord,
 )
+from app.features.pto.constants import MINUTES_PER_WORK_DAY
 from app.features.pto.entities import (
     PtoAffectEntry,
     PtoAffectEntryType,
@@ -273,3 +274,52 @@ async def test_a_past_year_without_a_bank_is_rejected(
         )
 
     assert exc_info.value.code == "pto_bank_not_found"
+
+
+def _work_start_years_ago(years: int) -> date:
+    today = date.today()
+    try:
+        return today.replace(year=today.year - years)
+    except ValueError:  # February 29
+        return today.replace(year=today.year - years, day=28)
+
+
+async def test_deduction_does_not_refill_spent_seniority(
+    db_session_manager: DbSessionManager,
+) -> None:
+    target = 2 * MINUTES_PER_WORK_DAY
+    annual_balance = 1000
+    penalty = 180
+    bank_record = make_pto_bank_record(
+        year=date.today().year,
+        extended_balance=0,
+        seniority_balance=0,
+        annual_balance=annual_balance,
+        original_extended_balance=0,
+        original_seniority_balance=target,
+        original_annual_balance=annual_balance,
+    )
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        bank_record,
+    )
+
+    transaction = await _run(
+        db_session_manager,
+        _affect_entry(),
+        penalty,
+        year=date.today().year,
+        service=make_full_deduct_pto_for_entry_service(db_session_manager),
+    )
+
+    assert transaction is not None
+    assert transaction.value == penalty
+    assert transaction.exceed_bank_value == 0
+    stored = await _get_bank(db_session_manager, bank_record.id)
+    assert stored is not None
+    assert stored.extended_balance == 0
+    assert stored.seniority_balance == 0
+    assert stored.annual_balance == annual_balance - penalty
+    assert stored.original_seniority_balance == target
+    assert stored.original_annual_balance == annual_balance

@@ -437,7 +437,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
             seniority_balance=MINUTES_PER_WORK_DAY,
             original_annual_balance=444,
             original_extended_balance=555,
-            original_seniority_balance=666,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
         ),
     )
 
@@ -448,7 +448,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
         bank.original_annual_balance,
         bank.original_extended_balance,
         bank.original_seniority_balance,
-    ) == (444, 555, 666)
+    ) == (444, 555, 2 * MINUTES_PER_WORK_DAY)
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
     assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
@@ -456,7 +456,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
         stored.original_annual_balance,
         stored.original_extended_balance,
         stored.original_seniority_balance,
-    ) == (444, 555, 666)
+    ) == (444, 555, 2 * MINUTES_PER_WORK_DAY)
 
 
 async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
@@ -470,6 +470,7 @@ async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
             id=TEST_PTO_BANK_ID,
             year=date.today().year,
             seniority_balance=2 * MINUTES_PER_WORK_DAY,
+            original_seniority_balance=2 * MINUTES_PER_WORK_DAY,
             updated_at=unchanged_timestamp,
         ),
     )
@@ -477,6 +478,88 @@ async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
     bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
 
     assert bank.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
+    assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
     assert stored.updated_at == unchanged_timestamp
+
+
+async def test_viewing_current_year_records_seniority_already_ahead_of_original(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            seniority_balance=2 * MINUTES_PER_WORK_DAY,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+
+
+async def test_viewing_current_year_does_not_refill_spent_seniority(
+    db_session_manager: DbSessionManager,
+) -> None:
+    unchanged_timestamp = datetime(2026, 1, 1)
+    target = 2 * MINUTES_PER_WORK_DAY
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            annual_balance=1000,
+            seniority_balance=0,
+            original_seniority_balance=target,
+            updated_at=unchanged_timestamp,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.annual_balance == 1000
+    assert bank.seniority_balance == 0
+    assert bank.original_seniority_balance == target
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.annual_balance == 1000
+    assert stored.seniority_balance == 0
+    assert stored.original_seniority_balance == target
+    assert stored.updated_at == unchanged_timestamp
+
+
+async def test_viewing_current_year_grants_a_new_day_onto_spent_seniority(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            seniority_balance=0,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.seniority_balance == MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.seniority_balance == MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
