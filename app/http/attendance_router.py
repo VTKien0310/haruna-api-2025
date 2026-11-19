@@ -101,8 +101,8 @@ async def create_check_in(
     summary="GET /api/attendance/missed-check-ins",
     description=(
         "GET /api/attendance/missed-check-ins. List this user's current-year dates with scheduled work "
-        "and at least one uncovered scheduled minute, from the later of January 1 or the employment start date "
-        "through yesterday. Weekday and workday-exception shifts are considered. A date is omitted when the user "
+        "and at least one uncovered scheduled minute, from the later of January 1, the employment start date, "
+        "or 18 November 2026 through yesterday. Weekday and workday-exception shifts are considered. A date is omitted when the user "
         "has a check-in or all scheduled work is covered by remote work or recorded attendance/paid-absence entries; "
         "overlapping intervals count once. Requires a bearer token. Responses: 200 list of ISO calendar dates; "
         "401 unauthorized; 404 profile_not_found."
