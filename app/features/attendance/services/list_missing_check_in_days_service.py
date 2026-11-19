@@ -5,6 +5,7 @@ from fastapi import Depends, status
 
 from app.core import AppException
 from app.database import DbSessionManagerDep
+from app.features.attendance.constants import MISS_CHECK_IN_COUNTING_START
 from app.features.attendance.data import (
     FindOwnedPtoAttendanceEntriesByDateRangeReaderDep,
     FindWorkdayExceptionsByDatesReaderDep,
@@ -43,7 +44,9 @@ class ListMissingCheckInDaysService:
                     code="profile_not_found",
                     message=f"Profile for user '{user_id}' not found",
                 )
-            start_date = max(start_date, profile.work_start_date)
+            start_date = max(
+                start_date, profile.work_start_date, MISS_CHECK_IN_COUNTING_START
+            )
             if start_date > end_date:
                 return []
 

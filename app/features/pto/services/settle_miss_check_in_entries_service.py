@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.attendance.constants import MISS_CHECK_IN_COUNTING_START
 from app.features.attendance.data import (
     CreateMissCheckInEntryWriterDep,
     FindMissCheckInEntriesByOwnerAndDateRangeReaderDep,
@@ -44,7 +45,9 @@ class SettleMissCheckInEntriesService:
         bank: PtoBank,
         work_start_date: date,
     ) -> PtoBank:
-        start_date = max(date(bank.year, 1, 1), work_start_date)
+        start_date = max(
+            date(bank.year, 1, 1), work_start_date, MISS_CHECK_IN_COUNTING_START
+        )
         end_date = date(bank.year, 12, 31)
         if start_date > end_date:
             return bank
