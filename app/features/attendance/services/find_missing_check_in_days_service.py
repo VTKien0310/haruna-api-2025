@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from app.features.attendance.constants import MISS_CHECK_IN_COUNTING_START
 from app.features.attendance.entities import (
     CheckInEntry,
     WorkdayException,
@@ -32,6 +33,7 @@ class FindMissingCheckInDaysService:
         entries: list[AttendanceEntryWithAffect],
         exceptions: list[WorkdayException],
     ) -> list[tuple[date, int]]:
+        start_date = max(start_date, MISS_CHECK_IN_COUNTING_START)
         if start_date > end_date:
             return []
 

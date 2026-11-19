@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -11,6 +11,7 @@ from app.database import (
     PtoAffectEntryRecord,
     PtoBankRecord,
     PtoTransactionRecord,
+    RemoteWorkEntryRecord,
     TimeOffEntryRecord,
     WorkdayExceptionRecord,
 )
@@ -29,6 +30,21 @@ from tests.support.pto_services import make_get_or_create_pto_bank_service
 
 PREVIOUS_YEAR_BANK_ID = UUID("44444444-4444-4444-8444-444444444444")
 OTHER_USER_ID = UUID("55555555-5555-4555-8555-555555555555")
+SETTLEMENT_TODAY = date(2027, 1, 15)
+PREVIOUS_YEAR_MISSED_DAY = date(2026, 12, 31)
+
+
+class _SettlementDate(date):
+    @classmethod
+    def today(cls) -> date:
+        return date(2027, 1, 15)
+
+
+def _pin_settlement_today(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.features.pto.services.get_or_create_pto_bank_service.date",
+        _SettlementDate,
+    )
 
 
 def _service(db_session_manager: DbSessionManager) -> GetOrCreatePtoBankService:
@@ -140,9 +156,11 @@ async def test_creates_bank_with_extended_balance_from_last_year(
 
 async def test_settles_previous_year_before_carryover_and_is_idempotent(
     db_session_manager: DbSessionManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    current_year = date.today().year
-    missed_day = _previous_year_last_day()
+    _pin_settlement_today(monkeypatch)
+    current_year = SETTLEMENT_TODAY.year
+    missed_day = PREVIOUS_YEAR_MISSED_DAY
     records: list[SQLModel] = [
         make_profile_record(work_start_date=missed_day),
         make_pto_bank_record(
@@ -221,9 +239,11 @@ async def test_settles_previous_year_before_carryover_and_is_idempotent(
 
 async def test_settlement_deducts_only_minutes_uncovered_by_recorded_time_off(
     db_session_manager: DbSessionManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    current_year = date.today().year
-    missed_day = _previous_year_last_day()
+    _pin_settlement_today(monkeypatch)
+    current_year = SETTLEMENT_TODAY.year
+    missed_day = PREVIOUS_YEAR_MISSED_DAY
     time_off = TimeOffEntryRecord(date=missed_day, type=TimeOffType.MORNING)
     records: list[SQLModel] = [
         make_profile_record(work_start_date=missed_day),
@@ -265,6 +285,61 @@ async def test_settlement_deducts_only_minutes_uncovered_by_recorded_time_off(
     assert missed_entry.penalty == transaction.value == 240
 
 
+async def test_settlement_ignores_days_before_go_live(
+    db_session_manager: DbSessionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_settlement_today(monkeypatch)
+    current_year = SETTLEMENT_TODAY.year
+    before_go_live = date(2026, 11, 17)
+    go_live = date(2026, 11, 18)
+    records: list[SQLModel] = [
+        make_profile_record(work_start_date=date(2026, 11, 16)),
+        make_pto_bank_record(
+            id=PREVIOUS_YEAR_BANK_ID,
+            year=current_year - 1,
+            annual_balance=1_000,
+            seniority_balance=0,
+            extended_balance=0,
+        ),
+    ]
+    day = date(2026, 11, 16)
+    while day <= PREVIOUS_YEAR_MISSED_DAY:
+        if day.weekday() < 5 and day not in {before_go_live, go_live}:
+            remote_work = RemoteWorkEntryRecord(date=day, type=0)
+            records.extend(
+                [
+                    remote_work,
+                    PtoAffectEntryRecord(
+                        owner_id=UUID(TEST_USER_ID),
+                        entry_id=remote_work.id,
+                        entry_type=PtoAffectEntryType.REMOTE_WORK.value,
+                        no_deduction=0,
+                        title="Covered workday",
+                        note="",
+                    ),
+                ]
+            )
+        day += timedelta(days=1)
+    await _add_records(db_session_manager, *records)
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, current_year)
+
+    assert bank.extended_balance == 520
+    async with db_session_manager.session() as session:
+        missed_entries = (await session.exec(select(MissCheckInEntryRecord))).all()
+        transaction = (
+            await session.exec(
+                select(PtoTransactionRecord).where(
+                    PtoTransactionRecord.cause == "miss_check_in_entries_create"
+                )
+            )
+        ).one()
+
+    assert [entry.date for entry in missed_entries] == [go_live]
+    assert missed_entries[0].penalty == transaction.value == 480
+
+
 async def test_settlement_is_skipped_without_a_previous_year_bank(
     db_session_manager: DbSessionManager,
 ) -> None:
@@ -291,8 +366,9 @@ async def test_settlement_rolls_back_missed_entry_and_balance_when_transaction_f
     db_session_manager: DbSessionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    current_year = date.today().year
-    missed_day = _previous_year_last_day()
+    _pin_settlement_today(monkeypatch)
+    current_year = SETTLEMENT_TODAY.year
+    missed_day = PREVIOUS_YEAR_MISSED_DAY
     records: list[SQLModel] = [
         make_profile_record(work_start_date=missed_day),
         make_pto_bank_record(
@@ -437,7 +513,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
             seniority_balance=MINUTES_PER_WORK_DAY,
             original_annual_balance=444,
             original_extended_balance=555,
-            original_seniority_balance=666,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
         ),
     )
 
@@ -448,7 +524,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
         bank.original_annual_balance,
         bank.original_extended_balance,
         bank.original_seniority_balance,
-    ) == (444, 555, 666)
+    ) == (444, 555, 2 * MINUTES_PER_WORK_DAY)
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
     assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
@@ -456,7 +532,7 @@ async def test_viewing_current_year_accrues_seniority_and_persists(
         stored.original_annual_balance,
         stored.original_extended_balance,
         stored.original_seniority_balance,
-    ) == (444, 555, 666)
+    ) == (444, 555, 2 * MINUTES_PER_WORK_DAY)
 
 
 async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
@@ -470,6 +546,7 @@ async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
             id=TEST_PTO_BANK_ID,
             year=date.today().year,
             seniority_balance=2 * MINUTES_PER_WORK_DAY,
+            original_seniority_balance=2 * MINUTES_PER_WORK_DAY,
             updated_at=unchanged_timestamp,
         ),
     )
@@ -477,6 +554,88 @@ async def test_viewing_current_year_does_not_accrue_before_the_anniversary(
     bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
 
     assert bank.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
     stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
     assert stored is not None
+    assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
     assert stored.updated_at == unchanged_timestamp
+
+
+async def test_viewing_current_year_records_seniority_already_ahead_of_original(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            seniority_balance=2 * MINUTES_PER_WORK_DAY,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+
+
+async def test_viewing_current_year_does_not_refill_spent_seniority(
+    db_session_manager: DbSessionManager,
+) -> None:
+    unchanged_timestamp = datetime(2026, 1, 1)
+    target = 2 * MINUTES_PER_WORK_DAY
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            annual_balance=1000,
+            seniority_balance=0,
+            original_seniority_balance=target,
+            updated_at=unchanged_timestamp,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.annual_balance == 1000
+    assert bank.seniority_balance == 0
+    assert bank.original_seniority_balance == target
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.annual_balance == 1000
+    assert stored.seniority_balance == 0
+    assert stored.original_seniority_balance == target
+    assert stored.updated_at == unchanged_timestamp
+
+
+async def test_viewing_current_year_grants_a_new_day_onto_spent_seniority(
+    db_session_manager: DbSessionManager,
+) -> None:
+    await _add_records(
+        db_session_manager,
+        make_profile_record(work_start_date=_work_start_years_ago(2)),
+        make_pto_bank_record(
+            id=TEST_PTO_BANK_ID,
+            year=date.today().year,
+            seniority_balance=0,
+            original_seniority_balance=MINUTES_PER_WORK_DAY,
+        ),
+    )
+
+    bank = await _service(db_session_manager).handle(TEST_USER_ID, date.today().year)
+
+    assert bank.seniority_balance == MINUTES_PER_WORK_DAY
+    assert bank.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY
+    stored = await _get_bank(db_session_manager, TEST_PTO_BANK_ID)
+    assert stored is not None
+    assert stored.seniority_balance == MINUTES_PER_WORK_DAY
+    assert stored.original_seniority_balance == 2 * MINUTES_PER_WORK_DAY

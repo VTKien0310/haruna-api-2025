@@ -30,19 +30,22 @@ from app.features.pto.entities import PtoAffectEntryType
 from tests.factories.database_records import TEST_USER_ID, make_profile_record
 
 OTHER_USER_ID = str(uuid4())
-MONDAY = date(2026, 1, 5)
-TUESDAY = date(2026, 1, 6)
-WEDNESDAY = date(2026, 1, 7)
-THURSDAY = date(2026, 1, 8)
-FRIDAY = date(2026, 1, 9)
-SATURDAY = date(2026, 1, 10)
-SUNDAY = date(2026, 1, 11)
+BEFORE_GO_LIVE_MONDAY = date(2026, 11, 16)
+BEFORE_GO_LIVE_TUESDAY = date(2026, 11, 17)
+GO_LIVE_WEDNESDAY = date(2026, 11, 18)
+THURSDAY = date(2026, 11, 19)
+FRIDAY = date(2026, 11, 20)
+SATURDAY = date(2026, 11, 21)
+SUNDAY = date(2026, 11, 22)
+CHECK_IN_MONDAY = date(2026, 11, 23)
+HOLIDAY_TUESDAY = date(2026, 11, 24)
+TODAY = date(2026, 11, 25)
 
 
 class _FixedDate(date):
     @classmethod
     def today(cls) -> date:
-        return cls(2026, 1, 12)
+        return cls(2026, 11, 25)
 
 
 def _service(db_session_manager: DbSessionManager) -> ListMissingCheckInDaysService:
@@ -82,34 +85,34 @@ async def test_lists_uncovered_days_with_schedule_coverage_and_owner_scope(
     db_session_manager: DbSessionManager,
 ) -> None:
     async with db_session_manager.transaction() as session:
-        session.add(make_profile_record(work_start_date=MONDAY))
+        session.add(make_profile_record(work_start_date=BEFORE_GO_LIVE_MONDAY))
         await _add_owned_entry(
             session,
             OTHER_USER_ID,
-            RemoteWorkEntryRecord(date=MONDAY, type=0),
+            RemoteWorkEntryRecord(date=GO_LIVE_WEDNESDAY, type=0),
             PtoAffectEntryType.REMOTE_WORK,
         )
         await _add_owned_entry(
             session,
             TEST_USER_ID,
-            RemoteWorkEntryRecord(date=TUESDAY, type=0),
+            RemoteWorkEntryRecord(date=THURSDAY, type=0),
             PtoAffectEntryType.REMOTE_WORK,
         )
         await _add_owned_entry(
             session,
             TEST_USER_ID,
-            TimeOffEntryRecord(date=WEDNESDAY, type=WorkdayExceptionTime.MORNING),
+            TimeOffEntryRecord(date=FRIDAY, type=WorkdayExceptionTime.MORNING),
             PtoAffectEntryType.TIME_OFF,
         )
         await _add_owned_entry(
             session,
             TEST_USER_ID,
-            CheckInEntryRecord(date=THURSDAY, time=time(9, 0)),
+            CheckInEntryRecord(date=CHECK_IN_MONDAY, time=time(9, 0)),
             PtoAffectEntryType.CHECK_IN,
         )
         session.add(
             WorkdayExceptionRecord(
-                date=FRIDAY,
+                date=HOLIDAY_TUESDAY,
                 type=1,
                 time=WorkdayExceptionTime.FULL_DAY,
                 title="Holiday",
@@ -134,14 +137,16 @@ async def test_lists_uncovered_days_with_schedule_coverage_and_owner_scope(
 
     missing_days = await _service(db_session_manager).handle(TEST_USER_ID)
 
-    assert missing_days == [MONDAY, WEDNESDAY, SATURDAY, SUNDAY]
+    assert missing_days == [GO_LIVE_WEDNESDAY, FRIDAY, SATURDAY, SUNDAY]
+    assert BEFORE_GO_LIVE_MONDAY not in missing_days
+    assert BEFORE_GO_LIVE_TUESDAY not in missing_days
 
 
 async def test_does_not_scan_before_employment_or_include_today(
     db_session_manager: DbSessionManager,
 ) -> None:
     async with db_session_manager.transaction() as session:
-        session.add(make_profile_record(work_start_date=date(2026, 1, 12)))
+        session.add(make_profile_record(work_start_date=TODAY))
 
     missing_days = await _service(db_session_manager).handle(TEST_USER_ID)
 
