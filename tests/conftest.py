@@ -15,24 +15,30 @@ os.environ["DB_PASSWORD"] = "dummy-test-password"
 os.environ["DB_NAME"] = "dummy-test-database"
 os.environ["DB_SCHEMA"] = ""
 
+import asyncio
 from collections.abc import AsyncGenerator
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app import create_app
 from app.core.config import settings
+from app.core.http_client import get_basic_http_client
 from app.database import (
     DbSessionManager,
     get_db_session_manager,
     model_common_metadata,
 )
 from app.ports.ai.ai_port import get_ai_port
+from app.ports.supabase.access_token_verifier import clear_supabase_jwks_cache
 from app.ports.supabase.spb import SupabasePort, _get_supabase_client
 from tests.fakes.ai import AiApiFake
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
+from tests.support.access_token import jwks_http_client, rewrite_registered_bearer
 from tests.support.database import connect_test_database
 from tests.support.isolation import (
     assert_no_unexpected_interactions,
@@ -68,11 +74,13 @@ def _isolate(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.ports.supabase.spb.create_client", _blocked_create_client)
     monkeypatch.setattr("supabase.create_client", _blocked_create_client)
     _get_supabase_client.cache_clear()
+    clear_supabase_jwks_cache()
     try:
         yield
     finally:
         assert_no_unexpected_interactions()
         _get_supabase_client.cache_clear()
+        clear_supabase_jwks_cache()
 
 
 @pytest.fixture
@@ -110,13 +118,32 @@ def ai() -> AiApiFake:
     return AiApiFake()
 
 
+class _ApiTestClient(TestClient):
+    def __init__(self, app: FastAPI, supabase: SqliteSupabasePort) -> None:
+        super().__init__(app)
+        self._supabase = supabase
+
+    def request(self, method: str, url: str, **kwargs):
+        headers = kwargs.get("headers")
+        if isinstance(headers, dict):
+            kwargs["headers"] = rewrite_registered_bearer(self._supabase, headers)
+        return super().request(method, url, **kwargs)
+
+
+def _use_test_jwks(app: FastAPI, http_client: httpx.AsyncClient) -> None:
+    app.dependency_overrides[get_basic_http_client] = lambda: http_client
+
+
 @pytest.fixture
 def client(supabase: SqliteSupabasePort, ai: AiApiFake):
     app = create_app()
+    http_client = jwks_http_client()
     app.dependency_overrides[SupabasePort] = lambda: supabase
     app.dependency_overrides[get_ai_port] = lambda: ai
-    with TestClient(app) as test_client:
+    _use_test_jwks(app, http_client)
+    with _ApiTestClient(app, supabase) as test_client:
         yield test_client
+    asyncio.run(http_client.aclose())
 
 
 @pytest.fixture
@@ -126,8 +153,11 @@ async def db_client(
     db_session_manager: DbSessionManager,
 ) -> AsyncGenerator[TestClient, None]:
     app = create_app()
+    http_client = jwks_http_client()
     app.dependency_overrides[SupabasePort] = lambda: supabase
     app.dependency_overrides[get_ai_port] = lambda: ai
     app.dependency_overrides[get_db_session_manager] = lambda: db_session_manager
-    with TestClient(app) as test_client:
+    _use_test_jwks(app, http_client)
+    with _ApiTestClient(app, supabase) as test_client:
         yield test_client
+    await http_client.aclose()

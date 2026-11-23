@@ -2,9 +2,6 @@ from .access_token_verifier import (
     RejectedSupabaseAccessToken as RejectedSupabaseAccessToken,
 )
 from .access_token_verifier import (
-    UnresolvedSupabaseAccessToken as UnresolvedSupabaseAccessToken,
-)
-from .access_token_verifier import (
     VerifiedSupabaseAccessToken as VerifiedSupabaseAccessToken,
 )
 from .access_token_verifier import (

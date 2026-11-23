@@ -1,15 +1,12 @@
 # **SECURITY**
 
 - **Authentication**
-    - Must require a Supabase Bearer token, via `HTTPBearer`, for protected operations. Verify an access token
-      locally when this API can: ES256 or RS256 with the project JWKS at
-      `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`, or legacy HS256 with `SUPABASE_JWT_SECRET` when that secret is
-      configured. Map `sub` and `aud` through `User.from_verified_access_token`. A standard access token has no
-      account `created_at` claim; when that claim is absent, `created_at` is the token `iat`. Local verification
-      does not observe deletion, ban, or sign-out until the access token expires
-    - When the credential is not a JWT this API can check (for example an HS256 token and no
-      `SUPABASE_JWT_SECRET`), verify it with `supabase.auth().get_user(token)` off the event loop and map the
-      result through `User.from_spb_auth`. Client-side session checks are not authorization
+    - Must require a Supabase Bearer token, via `HTTPBearer`, for protected operations. Verify it locally as an
+      ES256 or RS256 access token with the project JWKS at
+      `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Reject every other algorithm, including HS256. Map `sub` and
+      `aud` through `User.from_verified_access_token`. A standard access token has no account `created_at` claim;
+      when that claim is absent, `created_at` is the token `iat`. Local verification does not observe deletion,
+      ban, or sign-out until the access token expires. Client-side session checks are not authorization
     - Must return the generic `401` message `"Invalid authentication credentials"` for auth failures, and must not
       reveal whether the token was missing, expired, or malformed
 - **Authorization and data access**
@@ -57,9 +54,8 @@
     - Must load configuration from environment variables through `Settings` in `app/core/config.py`. Never hardcode
       secrets, tokens, or service credentials
     - Must not commit `.env` or any file that contains credentials. `.env.example` lists names only
-    - Must keep `SUPABASE_SERVICE_ROLE_KEY` (see Authorization), `SUPABASE_JWT_SECRET` when the project still signs
-      access tokens with HS256, `DB_PASSWORD`, `AI_API_KEY`, and `AI_API_ENDPOINT` in server-side configuration.
-      Production overrides are set with Fly secrets
+    - Must keep `SUPABASE_SERVICE_ROLE_KEY` (see Authorization), `DB_PASSWORD`, `AI_API_KEY`, and `AI_API_ENDPOINT`
+      in server-side configuration. Production overrides are set with Fly secrets
     - See the [Supabase API key guide](https://supabase.com/docs/guides/getting-started/api-keys)
 - **Logging and error messages**
     - Must never log passwords, access tokens, authorization headers, service keys, or other application secrets.

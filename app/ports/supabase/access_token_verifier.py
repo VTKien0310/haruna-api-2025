@@ -31,12 +31,7 @@ class VerifiedSupabaseAccessToken:
 
 @dataclass(frozen=True)
 class RejectedSupabaseAccessToken:
-    """The token is a JWT this verifier can check, and the check failed."""
-
-
-@dataclass(frozen=True)
-class UnresolvedSupabaseAccessToken:
-    """Local verification cannot decide. The caller may ask the auth server."""
+    """The access token is missing, expired, or not a verifiable ES256/RS256 JWT."""
 
 
 def clear_supabase_jwks_cache() -> None:
@@ -48,65 +43,48 @@ async def verify_supabase_access_token(
     *,
     http_client: httpx.AsyncClient,
     supabase_url: str,
-    jwt_secret: str,
     supabase_key: str,
-) -> (
-    VerifiedSupabaseAccessToken
-    | RejectedSupabaseAccessToken
-    | UnresolvedSupabaseAccessToken
-):
-    if len(token) > _MAX_TOKEN_LENGTH:
+) -> VerifiedSupabaseAccessToken | RejectedSupabaseAccessToken:
+    if len(token) > _MAX_TOKEN_LENGTH or token.count(".") != 2:
+        return RejectedSupabaseAccessToken()
+    if any(part == "" for part in token.split(".")):
         return RejectedSupabaseAccessToken()
 
-    # Opaque session strings are not JWTs. Tests and any non-JWT credential
-    # stay on the auth-server path.
-    if token.count(".") != 2 or any(part == "" for part in token.split(".")):
-        return UnresolvedSupabaseAccessToken()
-
     issuer = _issuer(supabase_url)
+    if issuer is None:
+        return RejectedSupabaseAccessToken()
+
     try:
         header = jwt.get_unverified_header(token)
     except PyJWTError:
         return RejectedSupabaseAccessToken()
 
     algorithm = header.get("alg")
-    if not isinstance(algorithm, str) or algorithm in {"", "none"}:
+    if algorithm not in _ASYMMETRIC_ALGORITHMS:
         return RejectedSupabaseAccessToken()
 
     kid = header.get("kid")
     key_id = kid if isinstance(kid, str) and kid else None
-
-    if algorithm == "HS256":
-        secret = jwt_secret.strip()
-        if issuer is None or not secret:
-            return UnresolvedSupabaseAccessToken()
-        return _identity_from_decoded_token(token, secret, ["HS256"], issuer)
-
-    if algorithm not in _ASYMMETRIC_ALGORITHMS or issuer is None:
-        return UnresolvedSupabaseAccessToken()
-
     jwks_url = f"{issuer}/.well-known/jwks.json"
     loaded = await _load_jwks(jwks_url, http_client, supabase_key, force=False)
     if loaded is None:
-        return UnresolvedSupabaseAccessToken()
+        return RejectedSupabaseAccessToken()
     keys, fetched_at = loaded
 
     signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
     if signing_key is _AMBIGUOUS_KEY or signing_key is _INVALID_KEY:
-        return UnresolvedSupabaseAccessToken()
+        return RejectedSupabaseAccessToken()
     if (
         signing_key is None
         and (time.monotonic() - fetched_at) > _JWKS_REFRESH_AFTER_SECONDS
     ):
         loaded = await _load_jwks(jwks_url, http_client, supabase_key, force=True)
         if loaded is None:
-            return UnresolvedSupabaseAccessToken()
+            return RejectedSupabaseAccessToken()
         keys, _fetched_at = loaded
         signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
 
-    if signing_key is _AMBIGUOUS_KEY or signing_key is _INVALID_KEY:
-        return UnresolvedSupabaseAccessToken()
-    if signing_key is None:
+    if not _is_signing_key(signing_key):
         return RejectedSupabaseAccessToken()
 
     return _identity_from_decoded_token(token, signing_key, [algorithm], issuer)
@@ -117,6 +95,14 @@ def _issuer(supabase_url: str) -> str | None:
     if not base:
         return None
     return f"{base}/auth/v1"
+
+
+def _is_signing_key(signing_key: object | None) -> bool:
+    return (
+        signing_key is not None
+        and signing_key is not _AMBIGUOUS_KEY
+        and signing_key is not _INVALID_KEY
+    )
 
 
 def _identity_from_decoded_token(

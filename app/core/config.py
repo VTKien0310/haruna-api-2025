@@ -40,8 +40,6 @@ class Settings(BaseSettings):
 
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
-    # Legacy HS256 access tokens. Empty for projects that sign with ES256 or RS256.
-    SUPABASE_JWT_SECRET: str = ""
 
     AI_API_ENDPOINT: str = ""
     AI_API_KEY: str = ""

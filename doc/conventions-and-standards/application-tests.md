@@ -20,7 +20,7 @@ Tests mirror the application under `tests/features/`, `tests/http/`, `tests/data
 - Pass `supabase` into a Supabase-backed reader, writer, or service constructor. HTTP tests use the `client` fixture, which overrides `SupabasePort` and the AI port factory with the same fakes.
 - Direct-database services receive `db_session_manager`, and their readers and writers receive its `AsyncSession` through `handle()`. HTTP tests for these services use `db_client`, which also overrides `get_db_session_manager`.
 - Build table-double rows with the `insert_*` helpers and SQLModel rows with the `make_*_record` helpers. Pass keyword overrides for any column that matters to the assertion.
-- Register a bearer token with `supabase.auth().register(token)` before a protected request. `reject(token)` configures an unknown user. A token that was neither registered nor rejected fails the test.
+- Register a bearer token with `supabase.auth().register(token, user_id=...)` before a protected request. The HTTP test client replaces that label with an ES256 access token whose `sub` is `user_id`. The API verifies it against an in-memory JWKS for `SUPABASE_URL`. `reject(token)` leaves the label unsigned, so the API returns 401. A bearer that was not registered is sent unchanged.
 - Upload storage bytes with `supabase.storage_media()`, `storage_resized()`, or `storage_thumbnails()` before the code downloads them. Queue an AI payload with `ai.queue_chat_completion(...)` before the code calls the model.
 - The table double supports the query chain the application uses today: `select`, `eq`, `order` (ascending by default), `in_`, `insert`, `update`, `delete`, `single`, and `execute().data`. `single()` yields `data=None` when no row matches.
 
@@ -38,6 +38,6 @@ These tests do not validate hosted migrations, PostgreSQL-specific behavior, row
 
 - Real Supabase client construction raises, and the violation is still reported if application code catches the error.
 - Outbound sockets and name resolution raise the same way, including any attempted direct PostgreSQL connection.
-- Unconfigured auth, storage, and AI calls fail the test even when application code catches them.
+- Unconfigured storage and AI calls fail the test even when application code catches them. Authentication is local JWT verification against the in-memory JWKS and does not call Supabase Auth.
 - Only the isolation self-tests may consume an expected guard violation, and they must assert that violation before the test ends.
 - Never point tests at a development or production environment file, credential, or database.
