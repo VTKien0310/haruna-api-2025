@@ -32,8 +32,12 @@ them when they are stricter or newer than this checklist. Bucket layout is in
 
 ### 3. Request Protection
 
-* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify it with `supabase.auth().get_user(token)`
-  and map the result through `User.from_spb_auth`. A client-side session check is not authorization.
+* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify ES256/RS256 access tokens with the
+  project JWKS, or legacy HS256 with `SUPABASE_JWT_SECRET` when that secret is set, and map `sub` and `aud` through
+  `User.from_verified_access_token`. When the token cannot be checked locally, verify it with
+  `supabase.auth().get_user(token)` off the event loop and map the result through `User.from_spb_auth`. A
+  client-side session check is not authorization. Local verification does not observe deletion, ban, or sign-out
+  until the access token expires.
 * Auth failures return the generic `401` message `"Invalid authentication credentials"`. Do not reveal whether the
   token was missing, expired, or malformed.
 * Read the token from the `Authorization` header. `API_ALLOW_ORIGINS` is not authentication, authorization, or CSRF
@@ -63,8 +67,8 @@ them when they are stricter or newer than this checklist. Bucket layout is in
 
 * Load configuration through `Settings` in `app/core/config.py`. Never hardcode secrets, tokens, API keys, or service
   credentials.
-* Keep `SUPABASE_SERVICE_ROLE_KEY`, `AI_API_KEY`, and `AI_API_ENDPOINT` in server-side configuration. Production
-  overrides are Fly secrets, not values committed in the repo.
+* Keep `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` when set, `AI_API_KEY`, and `AI_API_ENDPOINT` in
+  server-side configuration. Production overrides are Fly secrets, not values committed in the repo.
 * Do not commit `.env`, private keys (`*.pem`, `*.key`), or any other file that contains credentials. `.env.example`
   lists names only.
 * Do not return service credentials, access tokens, or signed URLs in an error payload.
