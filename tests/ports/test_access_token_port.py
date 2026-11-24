@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -218,7 +219,8 @@ async def test_unknown_kid_is_rejected_without_a_second_fetch() -> None:
     )
 
     assert verdict is None
-    assert len(calls) == 1
+    assert len(calls) == 2
+    assert calls[1].headers.get("cache-control") == "no-cache"
 
 
 async def test_jwks_failure_is_rejected() -> None:
@@ -233,6 +235,92 @@ async def test_jwks_failure_is_rejected() -> None:
     )
 
     assert verdict is None
+
+
+async def test_supabase_es256_token_verifies_when_the_gateway_requires_authorization(
+    caplog: logging.LogCaptureFixture,
+) -> None:
+    private_key = _es256_key()
+    kid = "3a18cfe2-7226-43b0-bbb4-7c5242f2406e"
+    jwk = _public_jwk(private_key, kid)
+    del jwk["use"]
+    jwk["key_ops"] = ["verify"]
+    jwk["ext"] = True
+    now = _NOW
+    token = _sign(
+        private_key,
+        "ES256",
+        kid,
+        email="user@example.com",
+        phone="",
+        app_metadata={"provider": "email", "providers": ["email"]},
+        user_metadata={"name": "Haruna"},
+        aal="aal1",
+        amr=[{"method": "password", "timestamp": now}],
+        session_id="22222222-2222-4222-8222-222222222222",
+        is_anonymous=False,
+    )
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.headers.get("authorization") != (
+            f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"
+        ):
+            return httpx.Response(401, json={"message": "Invalid API key"})
+        if request.headers.get("apikey") != settings.SUPABASE_SERVICE_ROLE_KEY:
+            return httpx.Response(401, json={"message": "Invalid API key"})
+        return httpx.Response(200, json={"keys": [jwk]})
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        verdict = await _verify(token, transport=httpx.MockTransport(handler))
+
+    assert isinstance(verdict, VerifiedAccessToken)
+    assert verdict.user_id == "user-1"
+    assert len(calls) == 1
+    assert token not in " ".join(caplog.messages)
+
+
+async def test_stale_empty_jwks_is_refetched_without_using_the_edge_cache() -> None:
+    private_key = _es256_key()
+    jwk = _public_jwk(private_key, "test-key")
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.headers.get("cache-control") == "no-cache":
+            return httpx.Response(200, json={"keys": [jwk]})
+        return httpx.Response(200, json={"keys": []})
+
+    verdict = await _verify(
+        _sign(private_key, "ES256", "test-key"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert isinstance(verdict, VerifiedAccessToken)
+    assert verdict.user_id == "user-1"
+    assert len(calls) == 2
+
+
+async def test_jwks_http_error_is_logged_without_the_token(
+    caplog: logging.LogCaptureFixture,
+) -> None:
+    private_key = _es256_key()
+    token = _sign(private_key, "ES256", "test-key")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"message": "Invalid API key"})
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        verdict = await _verify(token, transport=httpx.MockTransport(handler))
+
+    assert verdict is None
+    logged = " ".join(caplog.messages)
+    assert "jwks fetch" in logged
+    assert "status=401" in logged
+    assert "HTTPStatusError" in logged
+    assert "cache=miss" in logged
+    assert token not in logged
 
 
 def _b64(value: object) -> str:
