@@ -32,7 +32,7 @@ them when they are stricter or newer than this checklist. Bucket layout is in
 
 ### 3. Request Protection
 
-* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify it with `AccessTokenVerifierPort`
+* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify it with `AccessTokenPort`
   as an ES256 or RS256 access token against the project JWKS, and reject every other algorithm, including HS256.
   Map `sub` and `aud` through `User.from_verified_access_token`. A client-side session check is not authorization.
   Local verification does not observe deletion, ban, or sign-out until the access token expires.

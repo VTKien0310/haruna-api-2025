@@ -1,8 +1,8 @@
-from app.ports.access_token import VerifiedAccessToken
+from app.ports.supabase import VerifiedAccessToken
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
 
-class AccessTokenVerifierFake:
+class AccessTokenFake:
     """In-memory stand-in: a registered bearer label verifies as that user."""
 
     def __init__(self, supabase: SqliteSupabasePort) -> None:

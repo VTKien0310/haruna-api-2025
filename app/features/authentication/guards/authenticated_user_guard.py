@@ -4,9 +4,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.features.authentication.entities import User
-from app.ports.access_token import (
-    AccessTokenVerifierPort,
-    AccessTokenVerifierPortDep,
+from app.ports.supabase import (
+    AccessTokenPort,
+    AccessTokenPortDep,
     VerifiedAccessToken,
 )
 
@@ -15,7 +15,7 @@ security = HTTPBearer()
 
 async def _get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    verifier: AccessTokenVerifierPortDep,
+    verifier: AccessTokenPortDep,
 ) -> User:
     verified = await _verified_access_token(verifier, credentials.credentials)
     if verified is None:
@@ -32,7 +32,7 @@ async def _get_user_from_supabase_token(
 
 
 async def _verified_access_token(
-    verifier: AccessTokenVerifierPort, token: str
+    verifier: AccessTokenPort, token: str
 ) -> VerifiedAccessToken | None:
     try:
         return await verifier.verify(token)

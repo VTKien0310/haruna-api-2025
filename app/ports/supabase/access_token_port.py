@@ -33,7 +33,7 @@ class VerifiedAccessToken:
     created_at: datetime
 
 
-class AccessTokenVerifierPort:
+class AccessTokenPort:
     def __init__(self, http_client: BasicHttpClientDep) -> None:
         self.__http_client = http_client
         self.__supabase_url = settings.SUPABASE_URL
@@ -93,7 +93,7 @@ def clear_jwks_cache() -> None:
     _jwks_cache.clear()
 
 
-AccessTokenVerifierPortDep = Annotated[AccessTokenVerifierPort, Depends()]
+AccessTokenPortDep = Annotated[AccessTokenPort, Depends()]
 
 
 def _issuer(supabase_url: str) -> str | None:

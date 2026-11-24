@@ -33,11 +33,11 @@ from app.database import (
     get_db_session_manager,
     model_common_metadata,
 )
-from app.ports.access_token import AccessTokenVerifierPort
-from app.ports.access_token.access_token_verifier_port import clear_jwks_cache
 from app.ports.ai.ai_port import get_ai_port
-from app.ports.supabase.spb import SupabasePort, _get_supabase_client
-from tests.fakes.access_token_verifier import AccessTokenVerifierFake
+from app.ports.supabase import AccessTokenPort, SupabasePort
+from app.ports.supabase.access_token_port import clear_jwks_cache
+from app.ports.supabase.spb import _get_supabase_client
+from tests.fakes.access_token import AccessTokenFake
 from tests.fakes.ai import AiApiFake
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 from tests.support.access_token import jwks_http_client
@@ -123,9 +123,7 @@ def ai() -> AiApiFake:
 def _use_fakes(app: FastAPI, supabase: SqliteSupabasePort, ai: AiApiFake) -> None:
     app.dependency_overrides[SupabasePort] = lambda: supabase
     app.dependency_overrides[get_ai_port] = lambda: ai
-    app.dependency_overrides[AccessTokenVerifierPort] = lambda: AccessTokenVerifierFake(
-        supabase
-    )
+    app.dependency_overrides[AccessTokenPort] = lambda: AccessTokenFake(supabase)
 
 
 def _use_test_jwks(app: FastAPI, http_client: httpx.AsyncClient) -> None:
@@ -158,7 +156,7 @@ def jwks_client(supabase: SqliteSupabasePort, ai: AiApiFake):
     app = create_app()
     http_client = jwks_http_client()
     _use_fakes(app, supabase, ai)
-    del app.dependency_overrides[AccessTokenVerifierPort]
+    del app.dependency_overrides[AccessTokenPort]
     _use_test_jwks(app, http_client)
     with TestClient(app) as test_client:
         yield test_client
@@ -174,7 +172,7 @@ async def jwks_db_client(
     app = create_app()
     http_client = jwks_http_client()
     _use_fakes(app, supabase, ai)
-    del app.dependency_overrides[AccessTokenVerifierPort]
+    del app.dependency_overrides[AccessTokenPort]
     app.dependency_overrides[get_db_session_manager] = lambda: db_session_manager
     _use_test_jwks(app, http_client)
     with TestClient(app) as test_client:

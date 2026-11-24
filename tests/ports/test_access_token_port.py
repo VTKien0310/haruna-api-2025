@@ -10,8 +10,8 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
 from app.core.config import settings
-from app.ports.access_token import AccessTokenVerifierPort, VerifiedAccessToken
-from app.ports.access_token.access_token_verifier_port import clear_jwks_cache
+from app.ports.supabase import AccessTokenPort, VerifiedAccessToken
+from app.ports.supabase.access_token_port import clear_jwks_cache
 
 _ISSUER = "http://supabase.invalid/auth/v1"
 _NOW = int(time.time())
@@ -80,7 +80,7 @@ async def _verify(token: str, *, transport: httpx.MockTransport | None = None):
 
         transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        return await AccessTokenVerifierPort(http_client).verify(token)
+        return await AccessTokenPort(http_client).verify(token)
 
 
 async def test_es256_token_returns_the_subject_and_audience() -> None:
