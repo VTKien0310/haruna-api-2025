@@ -11,7 +11,6 @@ from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
 from app.core.config import settings
 from app.ports.supabase import AccessTokenPort, VerifiedAccessToken
-from app.ports.supabase.access_token_port import clear_jwks_cache
 
 _ISSUER = "http://supabase.invalid/auth/v1"
 _NOW = int(time.time())
@@ -19,9 +18,9 @@ _NOW = int(time.time())
 
 @pytest.fixture(autouse=True)
 def _empty_jwks_cache():
-    clear_jwks_cache()
+    AccessTokenPort.clear_jwks_cache()
     yield
-    clear_jwks_cache()
+    AccessTokenPort.clear_jwks_cache()
 
 
 def _claims(**overrides: object) -> dict[str, object]:

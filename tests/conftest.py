@@ -35,7 +35,6 @@ from app.database import (
 )
 from app.ports.ai.ai_port import get_ai_port
 from app.ports.supabase import AccessTokenPort, SupabasePort
-from app.ports.supabase.access_token_port import clear_jwks_cache
 from app.ports.supabase.spb import _get_supabase_client
 from tests.fakes.access_token import AccessTokenFake
 from tests.fakes.ai import AiApiFake
@@ -76,13 +75,13 @@ def _isolate(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.ports.supabase.spb.create_client", _blocked_create_client)
     monkeypatch.setattr("supabase.create_client", _blocked_create_client)
     _get_supabase_client.cache_clear()
-    clear_jwks_cache()
+    AccessTokenPort.clear_jwks_cache()
     try:
         yield
     finally:
         assert_no_unexpected_interactions()
         _get_supabase_client.cache_clear()
-        clear_jwks_cache()
+        AccessTokenPort.clear_jwks_cache()
 
 
 @pytest.fixture
