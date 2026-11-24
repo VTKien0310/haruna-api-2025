@@ -316,8 +316,10 @@ async def test_jwks_http_error_is_logged_without_the_token(
 
     assert verdict is None
     logged = " ".join(caplog.messages)
-    assert "reason=jwks_fetch_failed" in logged
+    assert "jwks fetch" in logged
+    assert "status=401" in logged
     assert "HTTPStatusError" in logged
+    assert "cache=miss" in logged
     assert token not in logged
 
 

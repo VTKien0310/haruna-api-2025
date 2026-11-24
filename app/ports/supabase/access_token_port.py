@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import re
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, ClassVar
@@ -12,7 +14,26 @@ from jwt import PyJWK, PyJWTError
 
 from app.core import BasicHttpClientDep, settings
 
-logger = logging.getLogger("app.auth")
+_QUERY = re.compile(r"\?\S*")
+_auth_logger_configured = False
+
+
+def auth_logger() -> logging.Logger:
+    """Info and warning on stderr so `fly logs` shows auth decisions."""
+    global _auth_logger_configured
+    log = logging.getLogger("app.auth")
+    if not _auth_logger_configured:
+        log.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+        log.addHandler(handler)
+        log.propagate = False
+        _auth_logger_configured = True
+    return log
+
+
+logger = auth_logger()
 
 
 @dataclass(frozen=True)
@@ -20,6 +41,27 @@ class VerifiedAccessToken:
     user_id: str
     audience: str
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class AccessTokenFailure:
+    reason: str
+    alg: str = ""
+    kid: str = ""
+    iss: str = ""
+    error_type: str = ""
+    error_message: str = ""
+
+
+_failure: ContextVar[AccessTokenFailure | None] = ContextVar(
+    "access_token_failure", default=None
+)
+
+
+def consume_access_token_failure() -> AccessTokenFailure | None:
+    failure = _failure.get()
+    _failure.set(None)
+    return failure
 
 
 class AccessTokenPort:
@@ -43,9 +85,12 @@ class AccessTokenPort:
         self.__supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY
 
     async def verify(self, token: str) -> VerifiedAccessToken | None:
+        _failure.set(None)
         if len(token) > AccessTokenPort.__MAX_TOKEN_LENGTH or token.count(".") != 2:
+            self.__log_rejection("malformed", token)
             return None
         if any(part == "" for part in token.split(".")):
+            self.__log_rejection("malformed", token)
             return None
 
         issuer = self.__issuer(self.__supabase_url)
@@ -55,7 +100,7 @@ class AccessTokenPort:
         try:
             header = jwt.get_unverified_header(token)
         except PyJWTError as exc:
-            self.__log_rejection("malformed", error=exc)
+            self.__log_rejection("malformed", token, error=exc)
             return None
 
         algorithm = header.get("alg")
@@ -68,7 +113,7 @@ class AccessTokenPort:
                 if isinstance(algorithm, str)
                 else type(algorithm).__name__
             )
-            self.__log_rejection("unsupported_algorithm", alg=shown)
+            self.__log_rejection("unsupported_algorithm", token, alg=shown)
             return None
 
         kid = header.get("kid")
@@ -82,10 +127,19 @@ class AccessTokenPort:
                 jwks_url, key_id, algorithm, force=True
             )
         if not self.__is_signing_key(signing_key):
-            self.__log_rejection("jwks_key_not_usable", alg=algorithm, kid=key_id or "")
+            if _failure.get() is None:
+                self.__log_rejection(
+                    "jwks_key_not_usable", token, alg=algorithm, kid=key_id or ""
+                )
+            self.__enrich_failure(token)
             return None
 
-        return self.__identity_from_token(token, signing_key, [algorithm], issuer)
+        verified = self.__identity_from_token(token, signing_key, [algorithm], issuer)
+        if verified is not None:
+            _failure.set(None)
+            return verified
+        self.__enrich_failure(token)
+        return None
 
     @classmethod
     def clear_jwks_cache(cls) -> None:
@@ -110,12 +164,14 @@ class AccessTokenPort:
         if not force:
             cached = self.__read_cache(url, now)
             if cached is not None:
+                self.__log_jwks(cache="hit", status="", url=url, keys=cached[0])
                 return cached
 
         async with self.__lock_for_running_loop():
             if not force:
                 cached = self.__read_cache(url, time.monotonic())
                 if cached is not None:
+                    self.__log_jwks(cache="hit", status="", url=url, keys=cached[0])
                     return cached
             try:
                 response = await self.__http_client.get(
@@ -133,12 +189,28 @@ class AccessTokenPort:
                     if isinstance(exc, httpx.HTTPStatusError)
                     else ""
                 )
-                self.__log_rejection("jwks_fetch_failed", error=exc, status=status)
+                final_url = ""
+                if isinstance(exc, httpx.HTTPStatusError):
+                    final_url = _public_url(exc.request.url)
+                self.__log_jwks(
+                    cache="miss",
+                    status=status,
+                    url=final_url or _public_url(url),
+                    keys=[],
+                    error=exc,
+                )
+                self.__log_rejection("jwks_fetch_failed", "", error=exc)
                 return None
 
             keys = self.__jwks_keys(payload)
+            self.__log_jwks(
+                cache="miss",
+                status=response.status_code,
+                url=_public_url(response.url),
+                keys=keys,
+            )
             if not keys:
-                self.__log_rejection("jwks_empty")
+                self.__log_rejection("jwks_empty", "")
                 return None
             fetched_at = time.monotonic()
             self.__jwks_cache[url] = (
@@ -201,22 +273,24 @@ class AccessTokenPort:
             details: dict[str, object] = {}
             if isinstance(exc, jwt.InvalidIssuerError):
                 details["iss"] = AccessTokenPort.__unverified_issuer(token)
-            AccessTokenPort.__log_rejection("jwt_rejected", error=exc, **details)
+            AccessTokenPort.__log_rejection("jwt_rejected", token, error=exc, **details)
             return None
 
         if not isinstance(decoded, dict):
-            AccessTokenPort.__log_rejection("jwt_rejected")
+            AccessTokenPort.__log_rejection("jwt_rejected", token)
             return None
         if decoded.get("role") != AccessTokenPort.__AUTHENTICATED:
-            AccessTokenPort.__log_rejection("role_rejected")
+            AccessTokenPort.__log_rejection("role_rejected", token)
             return None
 
         subject = decoded.get("sub")
         if not isinstance(subject, str) or not subject.strip():
+            AccessTokenPort.__log_rejection("subject_rejected", token)
             return None
 
         audience = AccessTokenPort.__audience(decoded.get("aud"))
         if audience is None:
+            AccessTokenPort.__log_rejection("audience_rejected", token)
             return None
 
         issued_at = AccessTokenPort.__unix_time(decoded.get("iat"))
@@ -327,21 +401,107 @@ class AccessTokenPort:
 
     @staticmethod
     def __log_rejection(
-        reason: str, error: Exception | None = None, **details: object
+        reason: str,
+        token: str = "",
+        *,
+        error: Exception | None = None,
+        **details: object,
     ) -> None:
-        extra = " ".join(
-            f"{key}={value}" for key, value in details.items() if value != ""
+        alg = str(details.pop("alg", "") or "")
+        kid = str(details.pop("kid", "") or "")
+        iss = str(details.pop("iss", "") or "")
+        if token:
+            header_alg, header_kid, claim_iss = AccessTokenPort.__token_hints(token)
+            alg = alg or header_alg
+            kid = kid or header_kid
+            iss = iss or claim_iss
+        _failure.set(
+            AccessTokenFailure(
+                reason=reason,
+                alg=alg,
+                kid=kid,
+                iss=iss,
+                error_type=type(error).__name__ if error else "",
+                error_message=_safe_message(error) if error else "",
+            )
+        )
+
+    @staticmethod
+    def __log_jwks(
+        *,
+        cache: str,
+        status: object,
+        url: str,
+        keys: list[dict[str, object]],
+        error: Exception | None = None,
+    ) -> None:
+        kids = ",".join(
+            str(item.get("kid", ""))
+            for item in keys
+            if isinstance(item.get("kid", ""), str)
         )
         if error is None:
-            logger.warning("access token rejected reason=%s %s", reason, extra)
+            logger.info(
+                "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s",
+                cache,
+                status,
+                _public_url(url),
+                len(keys),
+                kids,
+            )
             return
         logger.warning(
-            "access token rejected reason=%s error=%s: %s %s",
-            reason,
+            "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s error=%s: %s",
+            cache,
+            status,
+            _public_url(url),
+            len(keys),
+            kids,
             type(error).__name__,
-            error,
-            extra,
+            _safe_message(error),
         )
+
+    @staticmethod
+    def __token_hints(token: str) -> tuple[str, str, str]:
+        alg = ""
+        kid = ""
+        try:
+            header = jwt.get_unverified_header(token)
+        except PyJWTError:
+            header = {}
+        if isinstance(header, dict):
+            raw_alg = header.get("alg")
+            raw_kid = header.get("kid")
+            alg = raw_alg[:32] if isinstance(raw_alg, str) else ""
+            kid = raw_kid[:128] if isinstance(raw_kid, str) else ""
+        return alg, kid, AccessTokenPort.__unverified_issuer(token)
+
+    @staticmethod
+    def __enrich_failure(token: str) -> None:
+        failure = _failure.get()
+        if failure is None:
+            return
+        alg, kid, iss = AccessTokenPort.__token_hints(token)
+        if failure.alg and failure.kid and failure.iss:
+            return
+        _failure.set(
+            AccessTokenFailure(
+                reason=failure.reason,
+                alg=failure.alg or alg,
+                kid=failure.kid or kid,
+                iss=failure.iss or iss,
+                error_type=failure.error_type,
+                error_message=failure.error_message,
+            )
+        )
+
+
+def _public_url(url: object) -> str:
+    return _QUERY.sub("", str(url))
+
+
+def _safe_message(error: Exception) -> str:
+    return _QUERY.sub("", str(error))
 
 
 AccessTokenPortDep = Annotated[AccessTokenPort, Depends()]
