@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .error import register_error_handlers
 from .openapi import apply_openapi_schema
+from .request_timing import apply_request_timing
 from .response import apply_global_response_interface
 
 
@@ -25,6 +26,7 @@ def bootstrap_application(
     register_error_handlers(app)
 
     _config_cors(app)
+    apply_request_timing(app)
     _load_routes(app, api_router_registry, app_router_registry)
     apply_openapi_schema(app)
 
@@ -38,6 +40,7 @@ def _config_cors(app: FastAPI) -> None:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Process-Time"],
     )
 
 

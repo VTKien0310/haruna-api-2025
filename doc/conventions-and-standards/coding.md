@@ -46,8 +46,8 @@
   `CurrentAuthenticatedUserDep`. Protected routers set `dependencies=[AuthenticatedGuardDep]`
 - Must use Pydantic `BaseModel` request DTOs with `Field` constraints. _Ex: `CreateThumbnailRequest`,
   `TranslateRequest`_
-- Must use `@dataclass` for domain models, with a factory such as `from_spb_data` or `from_spb_auth`. _Ex: `Media`,
-  `User`, `TranslationHistory`_. Keep related enums beside the model. _Ex: `MediaType`, `AiRequestRole`_
+- Must use `@dataclass` for domain models, with a factory such as `from_spb_data` or `from_verified_access_token`.
+  _Ex: `Media`, `User`, `TranslationHistory`_. Keep related enums beside the model. _Ex: `MediaType`, `AiRequestRole`_
 - Must re-export public names from each package `__init__.py` (`from .module import Name as Name`) and import
   from the package rather than a deep module path
 - Must use lowercase path segments under `/api`. Path parameters use snake_case. A multi-word segment uses `-`. _Ex:

@@ -1,34 +1,43 @@
 from typing import Annotated
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.ports.supabase import SupabasePortDep
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.features.authentication.entities import User
+from app.ports.supabase import (
+    AccessTokenPort,
+    AccessTokenPortDep,
+    VerifiedAccessToken,
+)
 
 security = HTTPBearer()
 
 
 async def _get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    supabase: SupabasePortDep,
+    verifier: AccessTokenPortDep,
 ) -> User:
-    token = credentials.credentials
-
-    try:
-        spb_response = supabase.auth().get_user(token)
-        if spb_response is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return User.from_spb_auth(spb_response.user)
-    except Exception:
+    verified = await _verified_access_token(verifier, credentials.credentials)
+    if verified is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return User.from_verified_access_token(
+        user_id=verified.user_id,
+        audience=verified.audience,
+        created_at=verified.created_at,
+    )
+
+
+async def _verified_access_token(
+    verifier: AccessTokenPort, token: str
+) -> VerifiedAccessToken | None:
+    try:
+        return await verifier.verify(token)
+    except Exception:
+        return None
 
 
 AuthenticatedGuardDep = Depends(_get_user_from_supabase_token)

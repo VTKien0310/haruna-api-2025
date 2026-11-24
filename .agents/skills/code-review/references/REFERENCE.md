@@ -77,7 +77,7 @@ Implementation rules:
   routers set `dependencies=[AuthenticatedGuardDep]`.
 * Request bodies are Pydantic `BaseModel`s with `Field` constraints, in the feature's `requests/`.
 * Domain models that do not map one-to-one onto a request body are `@dataclass`es in `entities/`, with a
-  `@classmethod` factory such as `from_spb_data` or `from_spb_auth`. Keep related enums beside the model.
+  `@classmethod` factory such as `from_spb_data` or `from_verified_access_token`. Keep related enums beside the model.
 * Re-export public names from each package `__init__.py` (`from .module import Name as Name`). Import from the package,
   not from a deep module path.
 * Domain failures raise `AppException(status_code, code, message)`. Use `HTTPException` for standard protocol errors
@@ -155,6 +155,7 @@ Review tests that are part of the change. Do not start the suite unless the user
   fakes.
 * Pass `supabase` into a reader, writer, or service constructor. HTTP tests use the `client` fixture. Build rows with
   the `insert_*` helpers. Register a bearer token with `supabase.auth().register(token)` before a protected request.
+  The default client uses `AccessTokenFake`, which accepts that label as the registered user.
 * A missing test for a pure formatting or comment change is not a finding.
 
 ## Risk Assessment & Verdict

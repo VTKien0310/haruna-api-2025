@@ -1,4 +1,6 @@
+import asyncio
 import json
+
 from app.core import AppException, settings
 from app.features.authentication.entities import User
 from app.features.translation.data import (
@@ -116,11 +118,15 @@ class TranslateService:
         if not isinstance(translated_text, str):
             raise ValueError("AI response is missing a valid translated_text")
 
-        self.__delete_oldest_translation_histories_writer.handle(
-            owner_id=user.id, keep_limit=60
+        # Translation history queries use the synchronous Supabase client.
+        await asyncio.to_thread(
+            self.__delete_oldest_translation_histories_writer.handle,
+            owner_id=user.id,
+            keep_limit=60,
         )
 
-        self.__create_translation_history_writer.handle(
+        await asyncio.to_thread(
+            self.__create_translation_history_writer.handle,
             owner_id=user.id,
             source_language=source_language,
             target_language=target_language,
