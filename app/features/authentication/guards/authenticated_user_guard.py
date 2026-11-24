@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -11,6 +12,7 @@ from app.ports.supabase import (
 )
 
 security = HTTPBearer()
+logger = logging.getLogger("app.auth")
 
 
 async def _get_user_from_supabase_token(
@@ -36,7 +38,12 @@ async def _verified_access_token(
 ) -> VerifiedAccessToken | None:
     try:
         return await verifier.verify(token)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "access token rejected reason=unexpected error=%s: %s",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

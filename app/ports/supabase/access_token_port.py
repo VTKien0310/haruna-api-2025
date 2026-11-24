@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,6 +11,8 @@ from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
 from app.core import BasicHttpClientDep, settings
+
+logger = logging.getLogger("app.auth")
 
 
 @dataclass(frozen=True)
@@ -51,7 +54,8 @@ class AccessTokenPort:
 
         try:
             header = jwt.get_unverified_header(token)
-        except PyJWTError:
+        except PyJWTError as exc:
+            self.__log_rejection("malformed", error=exc)
             return None
 
         algorithm = header.get("alg")
@@ -59,38 +63,26 @@ class AccessTokenPort:
             not isinstance(algorithm, str)
             or algorithm not in AccessTokenPort.__ASYMMETRIC_ALGORITHMS
         ):
+            shown = (
+                algorithm[:32]
+                if isinstance(algorithm, str)
+                else type(algorithm).__name__
+            )
+            self.__log_rejection("unsupported_algorithm", alg=shown)
             return None
 
         kid = header.get("kid")
         key_id = kid if isinstance(kid, str) and kid else None
         jwks_url = f"{issuer}/.well-known/jwks.json"
-        loaded = await self.__load_jwks(jwks_url, force=False)
-        if loaded is None:
-            return None
-        keys, fetched_at = loaded
-
-        signing_key = self.__signing_key_for_token(
-            keys, kid=key_id, algorithm=algorithm
-        )
-        if (
-            signing_key is AccessTokenPort.__AMBIGUOUS_KEY
-            or signing_key is AccessTokenPort.__INVALID_KEY
-        ):
-            return None
-        if (
-            signing_key is None
-            and (time.monotonic() - fetched_at)
-            > AccessTokenPort.__JWKS_REFRESH_AFTER_SECONDS
-        ):
-            loaded = await self.__load_jwks(jwks_url, force=True)
-            if loaded is None:
-                return None
-            keys, _fetched_at = loaded
-            signing_key = self.__signing_key_for_token(
-                keys, kid=key_id, algorithm=algorithm
-            )
-
+        signing_key = await self.__signing_key(jwks_url, key_id, algorithm)
         if not self.__is_signing_key(signing_key):
+            # Supabase's edge caches this document for 10 minutes, including an
+            # empty set from before asymmetric keys were published. Bypass it once.
+            signing_key = await self.__signing_key(
+                jwks_url, key_id, algorithm, force=True
+            )
+        if not self.__is_signing_key(signing_key):
+            self.__log_rejection("jwks_key_not_usable", alg=algorithm, kid=key_id or "")
             return None
 
         return self.__identity_from_token(token, signing_key, [algorithm], issuer)
@@ -98,6 +90,15 @@ class AccessTokenPort:
     @classmethod
     def clear_jwks_cache(cls) -> None:
         cls.__jwks_cache.clear()
+
+    async def __signing_key(
+        self, url: str, key_id: str | None, algorithm: str, *, force: bool = False
+    ) -> object | None:
+        loaded = await self.__load_jwks(url, force=force)
+        if loaded is None:
+            return None
+        keys, _fetched_at = loaded
+        return self.__signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
 
     async def __load_jwks(
         self,
@@ -118,15 +119,26 @@ class AccessTokenPort:
                     return cached
             try:
                 response = await self.__http_client.get(
-                    url, headers=self.__jwks_headers(self.__supabase_key)
+                    url,
+                    headers=self.__jwks_headers(
+                        self.__supabase_key, bypass_cache=force
+                    ),
+                    follow_redirects=True,
                 )
                 response.raise_for_status()
                 payload = response.json()
-            except httpx.HTTPError, ValueError:
+            except (httpx.HTTPError, ValueError) as exc:
+                status = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else ""
+                )
+                self.__log_rejection("jwks_fetch_failed", error=exc, status=status)
                 return None
 
             keys = self.__jwks_keys(payload)
             if not keys:
+                self.__log_rejection("jwks_empty")
                 return None
             fetched_at = time.monotonic()
             self.__jwks_cache[url] = (
@@ -185,13 +197,18 @@ class AccessTokenPort:
                 leeway=AccessTokenPort.__CLOCK_LEEWAY_SECONDS,
                 options={"require": ["exp", "iat", "sub", "aud", "iss"]},
             )
-        except PyJWTError:
+        except PyJWTError as exc:
+            details: dict[str, object] = {}
+            if isinstance(exc, jwt.InvalidIssuerError):
+                details["iss"] = AccessTokenPort.__unverified_issuer(token)
+            AccessTokenPort.__log_rejection("jwt_rejected", error=exc, **details)
             return None
 
-        if (
-            not isinstance(decoded, dict)
-            or decoded.get("role") != AccessTokenPort.__AUTHENTICATED
-        ):
+        if not isinstance(decoded, dict):
+            AccessTokenPort.__log_rejection("jwt_rejected")
+            return None
+        if decoded.get("role") != AccessTokenPort.__AUTHENTICATED:
+            AccessTokenPort.__log_rejection("role_rejected")
             return None
 
         subject = decoded.get("sub")
@@ -277,12 +294,54 @@ class AccessTokenPort:
         return [key for key in keys if isinstance(key, dict)]
 
     @staticmethod
-    def __jwks_headers(api_key: str) -> dict[str, str]:
+    def __jwks_headers(api_key: str, *, bypass_cache: bool) -> dict[str, str]:
+        # Match the Supabase Python client: Auth requests send the server key
+        # as both apikey and Authorization. The hosted gateway rejects some
+        # Auth routes when Authorization is missing.
         headers = {"Accept": "application/json"}
         stripped = api_key.strip()
         if stripped:
             headers["apikey"] = stripped
+            headers["Authorization"] = f"Bearer {stripped}"
+        if bypass_cache:
+            headers["Cache-Control"] = "no-cache"
+            headers["Pragma"] = "no-cache"
         return headers
+
+    @staticmethod
+    def __unverified_issuer(token: str) -> str:
+        try:
+            payload = jwt.decode(
+                token,
+                options={
+                    "verify_signature": False,
+                    "verify_aud": False,
+                    "verify_iss": False,
+                    "verify_exp": False,
+                },
+            )
+        except PyJWTError:
+            return ""
+        issuer = payload.get("iss") if isinstance(payload, dict) else ""
+        return issuer if isinstance(issuer, str) else ""
+
+    @staticmethod
+    def __log_rejection(
+        reason: str, error: Exception | None = None, **details: object
+    ) -> None:
+        extra = " ".join(
+            f"{key}={value}" for key, value in details.items() if value != ""
+        )
+        if error is None:
+            logger.warning("access token rejected reason=%s %s", reason, extra)
+            return
+        logger.warning(
+            "access token rejected reason=%s error=%s: %s %s",
+            reason,
+            type(error).__name__,
+            error,
+            extra,
+        )
 
 
 AccessTokenPortDep = Annotated[AccessTokenPort, Depends()]
