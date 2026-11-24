@@ -22,13 +22,16 @@ app/
 │   ├── guards/    # Auth guards (Supabase bearer token)
 │   ├── requests/  # Request DTOs (Pydantic BaseModel)
 │   └── services/  # Business logic services
-├── http/          # FastAPI routers (thin, no business logic)
+├── http/          # HTTP routing and middleware
+│   ├── routers/   # FastAPI routers (thin, no business logic)
+│   └── middlewares/ # HTTP middleware
 ├── ports/         # External service adapters (Supabase)
 ├── __init__.py    # App factory (create_app)
 └── main.py        # Entrypoint
 ```
 
-Routers in `http/` only parse requests, delegate to services, and return responses. Domain logic stays in `features/`.
+Routers in `http/routers/` only parse requests, delegate to services, and return responses. Domain logic stays in
+`features/`.
 
 **Buckets:** layout and purpose of each storage bucket are in
 [doc/design-and-decision/storage-buckets.md](doc/design-and-decision/storage-buckets.md).

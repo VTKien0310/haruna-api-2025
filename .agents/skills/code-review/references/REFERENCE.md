@@ -60,9 +60,10 @@ are stricter or newer than this checklist.
 
 Keep HTTP, feature, port, and core layers separate:
 
-* `app/http/` — thin routers. Parse the request, delegate, and return a plain value. Register each prefixed
-  `APIRouter` in `api_router_registry` (`app/http/__init__.py`); `bootstrap_application` mounts them under
+* `app/http/routers/` — thin routers. Parse the request, delegate, and return a plain value. Register each prefixed
+  `APIRouter` in `api_router_registry` (`app/http/routers/__init__.py`); `bootstrap_application` mounts them under
   `settings.API_PREFIX`. Use `app_router_registry` for top-level routers that mount at the root.
+* `app/http/middlewares/` — HTTP middleware registered in `middleware_registry` for `bootstrap_application` to apply.
 * `app/features/<feature>/` — domain logic, one package per feature (`auth`, `media`, `translation`, `attendance`,
   `pto`, `profile`), using `data/`, `entities/`, `guards/`, `requests/`, and `services/` as needed.
 * `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`).
