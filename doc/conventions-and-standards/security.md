@@ -1,8 +1,8 @@
 # **SECURITY**
 
 - **Authentication**
-    - Must require a Supabase Bearer token, via `HTTPBearer`, for protected operations. Verify it locally as an
-      ES256 or RS256 access token with the project JWKS at
+    - Must require a Supabase Bearer token, via `HTTPBearer`, for protected operations. Verify it with
+      `AccessTokenVerifierPort`, which checks an ES256 or RS256 access token against the project JWKS at
       `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Reject every other algorithm, including HS256. Map `sub` and
       `aud` through `User.from_verified_access_token`. A standard access token has no account `created_at` claim;
       when that claim is absent, `created_at` is the token `iat`. Local verification does not observe deletion,

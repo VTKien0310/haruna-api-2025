@@ -29,11 +29,8 @@ class AuthFake:
     def reject(self, token: str) -> None:
         self._users[token] = None
 
-    def registered_user_id(self, token: str) -> str | None:
-        user = self._users.get(token)
-        if user is None:
-            return None
-        return user.id
+    def registered_user(self, token: str) -> AuthUser | None:
+        return self._users.get(token)
 
 
 class StorageBucket:

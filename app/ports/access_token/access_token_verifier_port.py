@@ -2,10 +2,14 @@ import asyncio
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Annotated
 
 import httpx
 import jwt
+from fastapi import Depends
 from jwt import PyJWK, PyJWTError
+
+from app.core import BasicHttpClientDep, settings
 
 _ASYMMETRIC_ALGORITHMS = frozenset({"ES256", "RS256"})
 _AUTHENTICATED = "authenticated"
@@ -23,71 +27,73 @@ _jwks_lock_loop: asyncio.AbstractEventLoop | None = None
 
 
 @dataclass(frozen=True)
-class VerifiedSupabaseAccessToken:
+class VerifiedAccessToken:
     user_id: str
     audience: str
     created_at: datetime
 
 
-@dataclass(frozen=True)
-class RejectedSupabaseAccessToken:
-    """The access token is missing, expired, or not a verifiable ES256/RS256 JWT."""
+class AccessTokenVerifierPort:
+    def __init__(self, http_client: BasicHttpClientDep) -> None:
+        self.__http_client = http_client
+        self.__supabase_url = settings.SUPABASE_URL
+        self.__supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY
+
+    async def verify(self, token: str) -> VerifiedAccessToken | None:
+        if len(token) > _MAX_TOKEN_LENGTH or token.count(".") != 2:
+            return None
+        if any(part == "" for part in token.split(".")):
+            return None
+
+        issuer = _issuer(self.__supabase_url)
+        if issuer is None:
+            return None
+
+        try:
+            header = jwt.get_unverified_header(token)
+        except PyJWTError:
+            return None
+
+        algorithm = header.get("alg")
+        if not isinstance(algorithm, str) or algorithm not in _ASYMMETRIC_ALGORITHMS:
+            return None
+
+        kid = header.get("kid")
+        key_id = kid if isinstance(kid, str) and kid else None
+        jwks_url = f"{issuer}/.well-known/jwks.json"
+        loaded = await _load_jwks(
+            jwks_url, self.__http_client, self.__supabase_key, force=False
+        )
+        if loaded is None:
+            return None
+        keys, fetched_at = loaded
+
+        signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
+        if signing_key is _AMBIGUOUS_KEY or signing_key is _INVALID_KEY:
+            return None
+        if (
+            signing_key is None
+            and (time.monotonic() - fetched_at) > _JWKS_REFRESH_AFTER_SECONDS
+        ):
+            loaded = await _load_jwks(
+                jwks_url, self.__http_client, self.__supabase_key, force=True
+            )
+            if loaded is None:
+                return None
+            keys, _fetched_at = loaded
+            signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
+
+        if not _is_signing_key(signing_key):
+            return None
+
+        return _identity_from_token(token, signing_key, [algorithm], issuer)
 
 
-def clear_supabase_jwks_cache() -> None:
+def clear_jwks_cache() -> None:
     _jwks_cache.clear()
 
 
-async def verify_supabase_access_token(
-    token: str,
-    *,
-    http_client: httpx.AsyncClient,
-    supabase_url: str,
-    supabase_key: str,
-) -> VerifiedSupabaseAccessToken | RejectedSupabaseAccessToken:
-    if len(token) > _MAX_TOKEN_LENGTH or token.count(".") != 2:
-        return RejectedSupabaseAccessToken()
-    if any(part == "" for part in token.split(".")):
-        return RejectedSupabaseAccessToken()
-
-    issuer = _issuer(supabase_url)
-    if issuer is None:
-        return RejectedSupabaseAccessToken()
-
-    try:
-        header = jwt.get_unverified_header(token)
-    except PyJWTError:
-        return RejectedSupabaseAccessToken()
-
-    algorithm = header.get("alg")
-    if algorithm not in _ASYMMETRIC_ALGORITHMS:
-        return RejectedSupabaseAccessToken()
-
-    kid = header.get("kid")
-    key_id = kid if isinstance(kid, str) and kid else None
-    jwks_url = f"{issuer}/.well-known/jwks.json"
-    loaded = await _load_jwks(jwks_url, http_client, supabase_key, force=False)
-    if loaded is None:
-        return RejectedSupabaseAccessToken()
-    keys, fetched_at = loaded
-
-    signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
-    if signing_key is _AMBIGUOUS_KEY or signing_key is _INVALID_KEY:
-        return RejectedSupabaseAccessToken()
-    if (
-        signing_key is None
-        and (time.monotonic() - fetched_at) > _JWKS_REFRESH_AFTER_SECONDS
-    ):
-        loaded = await _load_jwks(jwks_url, http_client, supabase_key, force=True)
-        if loaded is None:
-            return RejectedSupabaseAccessToken()
-        keys, _fetched_at = loaded
-        signing_key = _signing_key_for_token(keys, kid=key_id, algorithm=algorithm)
-
-    if not _is_signing_key(signing_key):
-        return RejectedSupabaseAccessToken()
-
-    return _identity_from_decoded_token(token, signing_key, [algorithm], issuer)
+AccessTokenVerifierPortDep = Annotated[AccessTokenVerifierPort, Depends()]
 
 
 def _issuer(supabase_url: str) -> str | None:
@@ -105,12 +111,12 @@ def _is_signing_key(signing_key: object | None) -> bool:
     )
 
 
-def _identity_from_decoded_token(
+def _identity_from_token(
     token: str,
     key: object,
     algorithms: list[str],
     issuer: str,
-) -> VerifiedSupabaseAccessToken | RejectedSupabaseAccessToken:
+) -> VerifiedAccessToken | None:
     try:
         decoded = jwt.decode(
             token,
@@ -122,24 +128,24 @@ def _identity_from_decoded_token(
             options={"require": ["exp", "iat", "sub", "aud", "iss"]},
         )
     except PyJWTError:
-        return RejectedSupabaseAccessToken()
+        return None
 
     if not isinstance(decoded, dict) or decoded.get("role") != _AUTHENTICATED:
-        return RejectedSupabaseAccessToken()
+        return None
 
     subject = decoded.get("sub")
     if not isinstance(subject, str) or not subject.strip():
-        return RejectedSupabaseAccessToken()
+        return None
 
     audience = _audience(decoded.get("aud"))
     if audience is None:
-        return RejectedSupabaseAccessToken()
+        return None
 
     issued_at = _unix_time(decoded.get("iat"))
     if issued_at is None:
-        return RejectedSupabaseAccessToken()
+        return None
 
-    return VerifiedSupabaseAccessToken(
+    return VerifiedAccessToken(
         user_id=subject,
         audience=audience,
         created_at=_created_at(decoded.get("created_at"), issued_at),

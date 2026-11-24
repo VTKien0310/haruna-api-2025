@@ -155,7 +155,7 @@ Review tests that are part of the change. Do not start the suite unless the user
   fakes.
 * Pass `supabase` into a reader, writer, or service constructor. HTTP tests use the `client` fixture. Build rows with
   the `insert_*` helpers. Register a bearer token with `supabase.auth().register(token)` before a protected request.
-  The test client replaces that label with an ES256 access token for the registered user.
+  The default client uses `AccessTokenVerifierFake`, which accepts that label as the registered user.
 * A missing test for a pure formatting or comment change is not a finding.
 
 ## Risk Assessment & Verdict

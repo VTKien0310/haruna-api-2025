@@ -29,12 +29,12 @@ def _hs256(**overrides: object) -> str:
 
 
 async def test_es256_token_uses_the_subject_as_the_user_id(
-    db_client: TestClient, db_session_manager: DbSessionManager
+    jwks_db_client: TestClient, db_session_manager: DbSessionManager
 ) -> None:
     async with db_session_manager.transaction() as session:
         session.add(make_profile_record())
 
-    response = db_client.put(
+    response = jwks_db_client.put(
         f"/api/pto/banks/{date.today().year}",
         headers={"Authorization": f"Bearer {access_token(TEST_USER_ID)}"},
     )
@@ -45,8 +45,8 @@ async def test_es256_token_uses_the_subject_as_the_user_id(
     assert body["content"]["owner_id"] == TEST_USER_ID
 
 
-def test_hs256_token_is_rejected(client: TestClient) -> None:
-    response = client.post(
+def test_hs256_token_is_rejected(jwks_client: TestClient) -> None:
+    response = jwks_client.post(
         "/api/medias/missing/thumbnails",
         json={"width": 8, "height": 8},
         headers={"Authorization": f"Bearer {_hs256()}"},
@@ -56,10 +56,10 @@ def test_hs256_token_is_rejected(client: TestClient) -> None:
     assert response.json()["content"]["error"]["code"] == "unauthorized"
 
 
-def test_expired_es256_token_is_rejected(client: TestClient) -> None:
+def test_expired_es256_token_is_rejected(jwks_client: TestClient) -> None:
     token = access_token(TEST_USER_ID, exp=int(time.time()) - 120)
 
-    response = client.post(
+    response = jwks_client.post(
         "/api/medias/missing/thumbnails",
         json={"width": 8, "height": 8},
         headers={"Authorization": f"Bearer {token}"},
@@ -69,8 +69,8 @@ def test_expired_es256_token_is_rejected(client: TestClient) -> None:
     assert response.json()["content"]["error"]["code"] == "unauthorized"
 
 
-def test_opaque_token_is_rejected(client: TestClient) -> None:
-    response = client.post(
+def test_opaque_token_is_rejected(jwks_client: TestClient) -> None:
+    response = jwks_client.post(
         "/api/medias/missing/thumbnails",
         json={"width": 8, "height": 8},
         headers={"Authorization": "Bearer token-1"},

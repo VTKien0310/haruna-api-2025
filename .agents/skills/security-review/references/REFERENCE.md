@@ -32,10 +32,10 @@ them when they are stricter or newer than this checklist. Bucket layout is in
 
 ### 3. Request Protection
 
-* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify it locally as an ES256 or RS256
-  access token with the project JWKS, and reject every other algorithm, including HS256. Map `sub` and `aud`
-  through `User.from_verified_access_token`. A client-side session check is not authorization. Local verification
-  does not observe deletion, ban, or sign-out until the access token expires.
+* Protected operations require a Supabase bearer token via `HTTPBearer`. Verify it with `AccessTokenVerifierPort`
+  as an ES256 or RS256 access token against the project JWKS, and reject every other algorithm, including HS256.
+  Map `sub` and `aud` through `User.from_verified_access_token`. A client-side session check is not authorization.
+  Local verification does not observe deletion, ban, or sign-out until the access token expires.
 * Auth failures return the generic `401` message `"Invalid authentication credentials"`. Do not reveal whether the
   token was missing, expired, or malformed.
 * Read the token from the `Authorization` header. `API_ALLOW_ORIGINS` is not authentication, authorization, or CSRF

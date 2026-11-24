@@ -9,23 +9,19 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
-from app.ports.supabase.access_token_verifier import (
-    RejectedSupabaseAccessToken,
-    VerifiedSupabaseAccessToken,
-    clear_supabase_jwks_cache,
-    verify_supabase_access_token,
-)
+from app.core.config import settings
+from app.ports.access_token import AccessTokenVerifierPort, VerifiedAccessToken
+from app.ports.access_token.access_token_verifier_port import clear_jwks_cache
 
-_URL = "http://supabase.invalid"
 _ISSUER = "http://supabase.invalid/auth/v1"
 _NOW = int(time.time())
 
 
 @pytest.fixture(autouse=True)
 def _empty_jwks_cache():
-    clear_supabase_jwks_cache()
+    clear_jwks_cache()
     yield
-    clear_supabase_jwks_cache()
+    clear_jwks_cache()
 
 
 def _claims(**overrides: object) -> dict[str, object]:
@@ -76,12 +72,7 @@ def _transport(
     return httpx.MockTransport(handler)
 
 
-async def _verify(
-    token: str,
-    *,
-    transport: httpx.MockTransport | None = None,
-    supabase_key: str = "service-role",
-):
+async def _verify(token: str, *, transport: httpx.MockTransport | None = None):
     if transport is None:
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -89,12 +80,7 @@ async def _verify(
 
         transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        return await verify_supabase_access_token(
-            token,
-            http_client=http_client,
-            supabase_url=_URL,
-            supabase_key=supabase_key,
-        )
+        return await AccessTokenVerifierPort(http_client).verify(token)
 
 
 async def test_es256_token_returns_the_subject_and_audience() -> None:
@@ -106,13 +92,13 @@ async def test_es256_token_returns_the_subject_and_audience() -> None:
         transport=_transport([_public_jwk(private_key, "test-key")], calls),
     )
 
-    assert isinstance(verdict, VerifiedSupabaseAccessToken)
+    assert isinstance(verdict, VerifiedAccessToken)
     assert verdict.user_id == "user-1"
     assert verdict.audience == "authenticated"
     assert verdict.created_at == datetime.fromtimestamp(issued_at, tz=timezone.utc)
     assert len(calls) == 1
     assert str(calls[0].url) == f"{_ISSUER}/.well-known/jwks.json"
-    assert calls[0].headers["apikey"] == "service-role"
+    assert calls[0].headers["apikey"] == settings.SUPABASE_SERVICE_ROLE_KEY
 
 
 async def test_es256_created_at_claim_is_kept() -> None:
@@ -122,7 +108,7 @@ async def test_es256_created_at_claim_is_kept() -> None:
         transport=_transport([_public_jwk(private_key, "test-key")], []),
     )
 
-    assert isinstance(verdict, VerifiedSupabaseAccessToken)
+    assert isinstance(verdict, VerifiedAccessToken)
     assert verdict.created_at == datetime(2020, 5, 1, 12, 30, tzinfo=timezone.utc)
 
 
@@ -135,8 +121,8 @@ async def test_es256_keys_are_cached() -> None:
     first = await _verify(token, transport=transport)
     second = await _verify(token, transport=transport)
 
-    assert isinstance(first, VerifiedSupabaseAccessToken)
-    assert isinstance(second, VerifiedSupabaseAccessToken)
+    assert isinstance(first, VerifiedAccessToken)
+    assert isinstance(second, VerifiedAccessToken)
     assert len(calls) == 1
 
 
@@ -153,7 +139,7 @@ async def test_rs256_token_is_accepted() -> None:
         transport=_transport([jwk], []),
     )
 
-    assert isinstance(verdict, VerifiedSupabaseAccessToken)
+    assert isinstance(verdict, VerifiedAccessToken)
     assert verdict.user_id == "user-1"
 
 
@@ -170,14 +156,14 @@ async def test_hs256_token_is_rejected_without_fetching_jwks() -> None:
 
     verdict = await _verify(encoded, transport=httpx.MockTransport(handler))
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
     assert calls == []
 
 
 async def test_opaque_token_is_rejected() -> None:
     verdict = await _verify("token-1")
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 @pytest.mark.parametrize(
@@ -197,7 +183,7 @@ async def test_es256_rejects_invalid_claims(overrides: dict[str, object]) -> Non
         transport=_transport([_public_jwk(private_key, "test-key")], []),
     )
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 async def test_es256_rejects_a_bad_signature() -> None:
@@ -207,7 +193,7 @@ async def test_es256_rejects_a_bad_signature() -> None:
         transport=_transport([_public_jwk(private_key, "test-key")], []),
     )
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 async def test_none_algorithm_is_rejected() -> None:
@@ -215,13 +201,13 @@ async def test_none_algorithm_is_rejected() -> None:
     payload = _b64(_claims())
     verdict = await _verify(f"{header}.{payload}.x")
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 async def test_oversized_token_is_rejected() -> None:
     verdict = await _verify("a" * 20_000)
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 async def test_unknown_kid_is_rejected_without_a_second_fetch() -> None:
@@ -232,7 +218,7 @@ async def test_unknown_kid_is_rejected_without_a_second_fetch() -> None:
         transport=_transport([_public_jwk(private_key, "other-key")], calls),
     )
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
     assert len(calls) == 1
 
 
@@ -247,7 +233,7 @@ async def test_jwks_failure_is_rejected() -> None:
         transport=httpx.MockTransport(handler),
     )
 
-    assert isinstance(verdict, RejectedSupabaseAccessToken)
+    assert verdict is None
 
 
 def _b64(value: object) -> str:

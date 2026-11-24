@@ -1,6 +1,5 @@
 import json
 import time
-from collections.abc import Mapping
 
 import httpx
 import jwt
@@ -8,7 +7,6 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from jwt.algorithms import ECAlgorithm
 
 from app.core.config import settings
-from tests.fakes.sqlite_supabase import SqliteSupabasePort
 from tests.support.isolation import unexpected_interaction
 
 _KID = "test-key"
@@ -39,28 +37,6 @@ def jwks_http_client() -> httpx.AsyncClient:
         return httpx.Response(200, json={"keys": [_public_jwk()]})
 
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
-
-
-def rewrite_registered_bearer(
-    supabase: SqliteSupabasePort, headers: Mapping[str, str]
-) -> dict[str, str]:
-    updated = dict(headers)
-    header_name = next(
-        (name for name in updated if name.lower() == "authorization"), None
-    )
-    if header_name is None:
-        return updated
-
-    scheme, _, token = updated[header_name].partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        return updated
-
-    user_id = supabase.auth().registered_user_id(token.strip())
-    if user_id is None:
-        return updated
-
-    updated[header_name] = f"Bearer {access_token(user_id)}"
-    return updated
 
 
 def _issuer() -> str:
