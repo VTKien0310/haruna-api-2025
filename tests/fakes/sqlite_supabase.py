@@ -1,7 +1,6 @@
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from types import SimpleNamespace
 
 from tests.support.database import quote_identifier
 from tests.support.isolation import unexpected_interaction
@@ -30,13 +29,8 @@ class AuthFake:
     def reject(self, token: str) -> None:
         self._users[token] = None
 
-    def get_user(self, token: str) -> SimpleNamespace | None:
-        if token not in self._users:
-            unexpected_interaction("Supabase auth get_user")
-        user = self._users[token]
-        if user is None:
-            return None
-        return SimpleNamespace(user=user)
+    def registered_user(self, token: str) -> AuthUser | None:
+        return self._users.get(token)
 
 
 class StorageBucket:

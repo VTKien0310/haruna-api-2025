@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, status
@@ -57,7 +58,8 @@ async def create_thumbnail(
     find_reader: FindMediaByIdReaderDep,
     create_thumbnail_service: Annotated[CreateMediaThumbnailService, Depends()],
 ) -> CreateThumbnailResponse:
-    media = find_reader.handle(media_id)
+    # The media query, storage calls, and Pillow resize are synchronous.
+    media = await asyncio.to_thread(find_reader.handle, media_id)
     if media is None:
         raise AppException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -65,8 +67,7 @@ async def create_thumbnail(
             message=f"Media with ID '{media_id}' not found",
         )
 
-    return CreateThumbnailResponse(
-        thumbnail_signed_url=create_thumbnail_service.handle(
-            media, request.width, request.height
-        )
+    thumbnail_signed_url = await asyncio.to_thread(
+        create_thumbnail_service.handle, media, request.width, request.height
     )
+    return CreateThumbnailResponse(thumbnail_signed_url=thumbnail_signed_url)

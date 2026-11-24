@@ -4,7 +4,7 @@
 
 ```
 app/
-├── __init__.py              # App factory: create_app(), api_router_registry, app_router_registry, lifespan
+├── __init__.py              # App factory: create_app() and lifespan
 ├── main.py                  # Entrypoint: uvicorn runner
 ├── core/
 │   ├── config.py            # pydantic-settings: Settings class, global `settings` instance
@@ -37,8 +37,10 @@ app/
 │           ├── __init__.py
 │           └── <verb>_<entity>_service.py
 ├── http/
-│   ├── <domain>_router.py   # One router file per domain
-│   └── request/             # Shared request parsing utilities (e.g. list params)
+│   ├── routers/
+│   │   └── <domain>_router.py   # One router file per domain
+│   └── middlewares/
+│       └── <name>_middleware.py # HTTP middleware
 └── ports/
     ├── <service>.py         # Adapter wrapping an external service
     └── __init__.py
@@ -54,8 +56,9 @@ Application-wide infrastructure. Not domain-specific.
 
 - **`config.py`**: `pydantic-settings` `Settings` class reads environment variables. All secrets come from here — no
   hardcoded values. A module-level `settings` singleton is instantiated once and imported everywhere.
-- **`bootstrap.py`**: `bootstrap_application(api_router_registry, lifespan_handler, app_router_registry=None)`
-  creates and wires the FastAPI app: CORS middleware, error handlers, response middleware, and all routers.
+- **`bootstrap.py`**: `bootstrap_application(api_router_registry, middleware_registry, lifespan_handler,
+  app_router_registry=None)` creates and wires the FastAPI app: CORS middleware, error handlers, response middleware,
+  registered middleware, and all routers.
   Routers in `api_router_registry` are mounted under `API_PREFIX` (`/api`); routers in `app_router_registry` are
   mounted at the root.
 - **`error.py`**: `AppException(status_code, code, message)` extends `HTTPException` with a semantic `code` field.
@@ -95,12 +98,13 @@ All domain logic, organized by bounded context. A domain is a cohesive area of t
 
 ### `http/`
 
-FastAPI router definitions only. No business logic.
+FastAPI routers and HTTP middleware. No business logic.
 
-- One `APIRouter` per domain, in its own file
+- One `APIRouter` per domain, in its own file under `routers/`
 - Route handlers: inject dependencies, delegate to services, return results
-- Register prefixed routers in `app/__init__.py` via `api_router_registry`. Top-level routers belong in
+- Register prefixed routers in `api_router_registry` (`app/http/routers/__init__.py`). Top-level routers belong in
   `app_router_registry`
+- Register middleware classes in `middleware_registry` (`app/http/middlewares/__init__.py`)
 
 ### `ports/`
 
@@ -117,7 +121,7 @@ Adapters for external services (Supabase, Telegram, Stripe, etc.).
 HTTP Request
   │
   ▼
-http/<domain>_router.py
+http/routers/<domain>_router.py
   │  FastAPI resolves dependencies:
   │  - Guard (auth) from guards/
   │  - Service instance from services/

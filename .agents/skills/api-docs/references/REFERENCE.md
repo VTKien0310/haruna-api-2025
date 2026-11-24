@@ -21,7 +21,7 @@ paths, query strings, or the envelope.
 * those three URLs set to `None` when docs are disabled (`APP_ENABLE_DOCS` defaults to false)
 
 Leave `title` and `version` on that `FastAPI()` call. Do not add a hand-maintained OpenAPI file or a collection
-directory. Routers are registered in `app/http/__init__.py` and mounted at `settings.API_PREFIX` (`/api`).
+directory. Routers are registered in `app/http/routers/__init__.py` and mounted at `settings.API_PREFIX` (`/api`).
 
 `APP_ENABLE_DOCS` is the conditional-docs switch described in
 [Conditional OpenAPI](https://fastapi.tiangolo.com/how-to/conditional-openapi/). Disabling docs removes the HTTP

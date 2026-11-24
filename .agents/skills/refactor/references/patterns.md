@@ -189,7 +189,7 @@ from .jwt_secret_guard import SecretJwtGuardDep as SecretJwtGuardDep
 
 ## Router — full example
 
-`app/http/item_router.py`
+`app/http/routers/item_router.py`
 
 ```python
 from fastapi import APIRouter
@@ -242,14 +242,13 @@ Registering in the app factory:
 
 ```python
 # app/__init__.py
-from app.http.item_router import router as item_router
-from app.http.key_router import router as key_router
-
-api_router_registry = [item_router, key_router]
+from app.http.middlewares import middleware_registry
+from app.http.routers import api_router_registry, app_router_registry
 
 app = bootstrap_application(
     api_router_registry=api_router_registry,
-    app_router_registry=[health_router],  # optional: top-level routes like liveness checks
+    middleware_registry=middleware_registry,
+    app_router_registry=app_router_registry,
     lifespan_handler=lifespan_handler,
 )
 ```

@@ -60,9 +60,10 @@ are stricter or newer than this checklist.
 
 Keep HTTP, feature, port, and core layers separate:
 
-* `app/http/` — thin routers. Parse the request, delegate, and return a plain value. Register each prefixed
-  `APIRouter` in `api_router_registry` (`app/http/__init__.py`); `bootstrap_application` mounts them under
+* `app/http/routers/` — thin routers. Parse the request, delegate, and return a plain value. Register each prefixed
+  `APIRouter` in `api_router_registry` (`app/http/routers/__init__.py`); `bootstrap_application` mounts them under
   `settings.API_PREFIX`. Use `app_router_registry` for top-level routers that mount at the root.
+* `app/http/middlewares/` — HTTP middleware registered in `middleware_registry` for `bootstrap_application` to apply.
 * `app/features/<feature>/` — domain logic, one package per feature (`auth`, `media`, `translation`, `attendance`,
   `pto`, `profile`), using `data/`, `entities/`, `guards/`, `requests/`, and `services/` as needed.
 * `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`).
@@ -77,7 +78,7 @@ Implementation rules:
   routers set `dependencies=[AuthenticatedGuardDep]`.
 * Request bodies are Pydantic `BaseModel`s with `Field` constraints, in the feature's `requests/`.
 * Domain models that do not map one-to-one onto a request body are `@dataclass`es in `entities/`, with a
-  `@classmethod` factory such as `from_spb_data` or `from_spb_auth`. Keep related enums beside the model.
+  `@classmethod` factory such as `from_spb_data` or `from_verified_access_token`. Keep related enums beside the model.
 * Re-export public names from each package `__init__.py` (`from .module import Name as Name`). Import from the package,
   not from a deep module path.
 * Domain failures raise `AppException(status_code, code, message)`. Use `HTTPException` for standard protocol errors
@@ -155,6 +156,7 @@ Review tests that are part of the change. Do not start the suite unless the user
   fakes.
 * Pass `supabase` into a reader, writer, or service constructor. HTTP tests use the `client` fixture. Build rows with
   the `insert_*` helpers. Register a bearer token with `supabase.auth().register(token)` before a protected request.
+  The default client uses `AccessTokenFake`, which accepts that label as the registered user.
 * A missing test for a pure formatting or comment change is not a finding.
 
 ## Risk Assessment & Verdict

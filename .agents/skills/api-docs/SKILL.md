@@ -40,8 +40,8 @@ request-collection tree.
 
 ### Step 1: Scope the change
 
-* List the affected routes from `app/http/*_router.py`, `api_router_registry`, and `app_router_registry` in
-  `app/http/__init__.py`: method, full path, path function, and dependencies. Routes from `api_router_registry`
+* List the affected routes from `app/http/routers/*_router.py`, `api_router_registry`, and `app_router_registry` in
+  `app/http/routers/__init__.py`: method, full path, path function, and dependencies. Routes from `api_router_registry`
   live under `settings.API_PREFIX` (`/api`); routes from `app_router_registry` mount at the root.
 * The full path is `settings.API_PREFIX` (`/api`) plus the router `prefix` plus the path on the decorator.
 * Read a sibling operation on the same router before writing a new one.
