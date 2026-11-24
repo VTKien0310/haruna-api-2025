@@ -4,15 +4,15 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from typing import Annotated
 
+from app.core import get_logger
 from app.features.authentication.entities import User
 from app.ports.supabase import AccessTokenPortDep, SupabasePortDep
 from app.ports.supabase.access_token_port import (
     AccessTokenFailure,
-    auth_logger,
     consume_access_token_failure,
 )
 
-logger = auth_logger()
+logger = get_logger("auth")
 security = HTTPBearer()
 
 

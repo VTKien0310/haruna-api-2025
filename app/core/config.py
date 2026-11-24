@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "2025"
     APP_PORT: int = 8000
     APP_ENABLE_DOCS: bool = False
+    LOG_LEVEL: str = "INFO"
 
     API_PREFIX: str = "/api"
     API_ALLOW_ORIGINS: List[str] = [

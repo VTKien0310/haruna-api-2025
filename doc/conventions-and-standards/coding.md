@@ -32,7 +32,10 @@
       `entities/`, `guards/`, `requests/`, and `services/` as needed
     - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`)
     - `app/database/` — SQLModel table models and asynchronous PostgreSQL session and transaction management
-    - `app/core/` — settings, bootstrap, `AppException`, response wrapping, and shared HTTP clients
+    - `app/core/` — settings, bootstrap, logging, `AppException`, response wrapping, and shared HTTP clients
+- Must take loggers from `get_logger` in `app.core`. `get_logger("request")` is the logger `app.request`.
+  `configure_logging` runs at startup. Do not add a handler in a feature, port, or middleware. Never log passwords,
+  access tokens, authorization headers, service keys, or other secrets
 - Must implement services, readers, and writers as classes with `handle()`. Inject dependencies in `__init__` and
   export a `*Dep = Annotated[T, Depends()]` alias. _Ex: `FindMediaByIdReader`_
 - Direct-database services inject `DbSessionManagerDep`. Use `.session()` for reads and `.transaction()` for atomic

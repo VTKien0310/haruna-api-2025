@@ -1,8 +1,11 @@
-import logging
 import time
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core import get_logger
+
+_logger = get_logger("request")
 
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):
@@ -27,14 +30,10 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     def __log_request(
         cls, request: Request, status_code: int, elapsed_ms: float
     ) -> None:
-        cls.__get_logger().info(
+        _logger.info(
             "request method=%s path=%s status=%s duration_ms=%.1f",
             request.method,
             request.url.path,
             status_code,
             elapsed_ms,
         )
-
-    @classmethod
-    def __get_logger(cls) -> logging.Logger:
-        return logging.getLogger("app.request")

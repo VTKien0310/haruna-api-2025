@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import re
 import time
 from contextvars import ContextVar
@@ -12,28 +11,11 @@ import jwt
 from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
-from app.core import BasicHttpClientDep, settings
+from app.core import BasicHttpClientDep, get_logger, settings
 
 _QUERY = re.compile(r"\?\S*")
-_auth_logger_configured = False
 
-
-def auth_logger() -> logging.Logger:
-    """Info and warning on stderr so `fly logs` shows auth decisions."""
-    global _auth_logger_configured
-    log = logging.getLogger("app.auth")
-    if not _auth_logger_configured:
-        log.setLevel(logging.INFO)
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
-        log.addHandler(handler)
-        log.propagate = False
-        _auth_logger_configured = True
-    return log
-
-
-logger = auth_logger()
+logger = get_logger("auth")
 
 
 @dataclass(frozen=True)
