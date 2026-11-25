@@ -1,6 +1,11 @@
 from fastapi import Request, HTTPException, status, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.responses import PlainTextResponse
+
+from .logging import get_logger
+
+_logger = get_logger("error")
 
 
 async def _http_exception_handler(request: Request, exc: HTTPException):
@@ -64,7 +69,23 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
     )
 
 
+async def _unhandled_exception_handler(
+    request: Request, exc: Exception
+) -> PlainTextResponse:
+    # Starlette uses the Exception handler as the outermost server-error
+    # handler. Return the same plain-text 500 it would send on its own.
+    _logger.error(
+        "unhandled exception method=%s path=%s error=%s",
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+        exc_info=exc,
+    )
+    return PlainTextResponse("Internal Server Error", status_code=500)
+
+
 def register_error_handlers(app: FastAPI):
     app.add_exception_handler(HTTPException, _http_exception_handler)
     app.add_exception_handler(AppException, _app_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
+    app.add_exception_handler(Exception, _unhandled_exception_handler)

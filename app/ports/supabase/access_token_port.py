@@ -12,28 +12,9 @@ import jwt
 from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
-from app.core import BasicHttpClientDep, settings
+from app.core import BasicHttpClientDep, get_logger, settings
 
 _QUERY = re.compile(r"\?\S*")
-_auth_logger_configured = False
-
-
-def auth_logger() -> logging.Logger:
-    """Info and warning on stderr so `fly logs` shows auth decisions."""
-    global _auth_logger_configured
-    log = logging.getLogger("app.auth")
-    if not _auth_logger_configured:
-        log.setLevel(logging.INFO)
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
-        log.addHandler(handler)
-        log.propagate = False
-        _auth_logger_configured = True
-    return log
-
-
-logger = auth_logger()
 
 
 @dataclass(frozen=True)
@@ -65,6 +46,7 @@ def consume_access_token_failure() -> AccessTokenFailure | None:
 
 
 class AccessTokenPort:
+    _logger: ClassVar[logging.Logger] = get_logger("auth")
     __ASYMMETRIC_ALGORITHMS: ClassVar[frozenset[str]] = frozenset({"ES256", "RS256"})
     __AUTHENTICATED: ClassVar[str] = "authenticated"
     __JWKS_TTL_SECONDS: ClassVar[int] = 60 * 60
@@ -426,8 +408,9 @@ class AccessTokenPort:
             )
         )
 
-    @staticmethod
+    @classmethod
     def __log_jwks(
+        cls,
         *,
         cache: str,
         status: object,
@@ -441,7 +424,7 @@ class AccessTokenPort:
             if isinstance(item.get("kid", ""), str)
         )
         if error is None:
-            logger.info(
+            cls._logger.info(
                 "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s",
                 cache,
                 status,
@@ -450,7 +433,7 @@ class AccessTokenPort:
                 kids,
             )
             return
-        logger.warning(
+        cls._logger.warning(
             "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s error=%s: %s",
             cache,
             status,

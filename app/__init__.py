@@ -3,19 +3,28 @@ from fastapi import FastAPI
 from typing import AsyncGenerator
 from .core import (
     bootstrap_application,
+    get_logger,
     init_basic_http_client,
     init_long_read_http_client,
+    log_startup,
 )
 from .database import init_db_session_manager
 from .http.middlewares import middleware_registry
 from .http.routers import api_router_registry, app_router_registry
 
+_logger = get_logger("core")
+
 
 @asynccontextmanager
 async def lifespan_handler(app: FastAPI) -> AsyncGenerator[None, None]:
-    app.state.basic_http_client = init_basic_http_client()
-    app.state.long_read_http_client = init_long_read_http_client()
-    app.state.db_session_manager = init_db_session_manager()
+    try:
+        app.state.basic_http_client = init_basic_http_client()
+        app.state.long_read_http_client = init_long_read_http_client()
+        app.state.db_session_manager = init_db_session_manager()
+        log_startup()
+    except Exception:
+        _logger.exception("startup failed")
+        raise
 
     try:
         yield

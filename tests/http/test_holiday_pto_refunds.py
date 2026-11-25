@@ -268,7 +268,7 @@ async def test_workday_creation_has_no_pto_effect(
     await seed(db_session_manager, supabase)
     create_entry(db_client, "check-ins", {"time": "09:30"})
     before = await snapshot(db_session_manager)
-    saturday = DAY + timedelta(days=5)
+    saturday = DAY + timedelta(days=(5 - DAY.weekday()) % 7)
     # Seed an entry on that weekend to ensure WORKDAY creation does not refund it.
 
     async with db_session_manager.transaction() as session:

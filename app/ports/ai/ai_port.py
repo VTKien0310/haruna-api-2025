@@ -1,12 +1,21 @@
+import logging
+import re
+from typing import Annotated, ClassVar
+
 import httpx
-from typing import Annotated
 from fastapi import Depends
+
+from app.core import LongReadHttpClientDep, get_logger, settings
+
 from .ai_request import AiRequestMessage
 from .ai_response import AiResponseFormat
-from app.core import LongReadHttpClientDep, settings
+
+_QUERY = re.compile(r"\?\S*")
 
 
 class AiApiPort:
+    _logger: ClassVar[logging.Logger] = get_logger("ai")
+
     def __init__(
         self, endpoint: str, api_key: str, http_client: httpx.AsyncClient
     ) -> None:
@@ -22,9 +31,17 @@ class AiApiPort:
     ) -> dict:
         request_body = self.__build_request_body(model, messages, response_format)
         headers = {"Authorization": f"Bearer {self.__api_key}"}
-        response = await self.__http_client.post(
-            f"{self.__endpoint}/chat/completions", json=request_body, headers=headers
-        )
+        try:
+            response = await self.__http_client.post(
+                f"{self.__endpoint}/chat/completions",
+                json=request_body,
+                headers=headers,
+            )
+        except httpx.HTTPError as exc:
+            self.__log_failure(error=exc)
+            raise
+        if response.status_code >= 400:
+            self.__log_failure(status_code=response.status_code)
         return response.json()
 
     def __build_request_body(
@@ -38,6 +55,22 @@ class AiApiPort:
             "messages": list(map(lambda m: m.build(), messages)),
             "response_format": response_format.build(),
         }
+
+    def __log_failure(
+        self, *, status_code: int | None = None, error: Exception | None = None
+    ) -> None:
+        if error is None:
+            self._logger.warning(
+                "ai request failed operation=chat_completion status=%s",
+                status_code,
+            )
+            return
+        self._logger.warning(
+            "ai request failed operation=chat_completion status=%s error=%s: %s",
+            "" if status_code is None else status_code,
+            type(error).__name__,
+            _QUERY.sub("", str(error)),
+        )
 
 
 def get_ai_port(http_client: LongReadHttpClientDep) -> AiApiPort:

@@ -44,6 +44,12 @@ cp .env.example .env
 
 - Edit `.env` and fill in your configuration values
 
+`LOG_LEVEL` sets the level of the `app` logger. Use `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. The default is `INFO`. You can leave it out of `.env`.
+
+The API writes its log lines to stderr. `fly logs` shows those lines. Fly.io does not need a new secret for logging.
+
+In application code, call `get_logger` from `app.core`. `get_logger("auth")` is the logger `app.auth`.
+
 For direct PostgreSQL access, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SCHEMA`.
 The asynchronous connection settings support Supabase's connection pooler as well as a direct database host. Keep the
 password in server-side environment configuration and use a least-privilege database role where practical. Supabase
@@ -107,6 +113,7 @@ This project is ready to run on Fly.io using the included `Dockerfile` and `fly.
 - The service listens on internal port 8000 (mapped to 80/443 externally). `PORT=8000` is set in `fly.toml` and the
   scontainer.
 - The app uses `pydantic-settings`; environment variables can override defaults in `app/core/config.py`.
+- Logs go to stderr at `INFO` unless you set `LOG_LEVEL`. You do not need a new Fly secret.
 - Scale memory/CPU (example): `fly scale vm shared-cpu-1x --memory 256`
 - Set min/max machines via `fly scale count` or adjust autoscaling in `fly.toml`.
 
