@@ -48,7 +48,7 @@ cp .env.example .env
 
 The API writes its log lines to stderr. `fly logs` shows those lines. Fly.io does not need a new secret for logging.
 
-A route, guard, or port constructor takes `get_logger_dep("auth")` from `app.core`. That injects the logger `app.auth`. Middleware and startup call `get_logger("auth")`.
+A FastAPI-built feature dependency takes its feature-specific `<Name>LoggerDep` from `app/features/<feature>/logger.py`. For example, `AuthenticationLoggerDep` injects `app.auth`. Port constructors use `Annotated[logging.Logger, Depends(logger_dependency(name))]` directly. Middleware and startup call `get_logger("auth")` directly.
 
 For direct PostgreSQL access, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SCHEMA`.
 The asynchronous connection settings support Supabase's connection pooler as well as a direct database host. Keep the

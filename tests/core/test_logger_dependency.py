@@ -1,10 +1,9 @@
 import logging
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.core import get_logger_dep, logger_dependency
+from app.core import logger_dependency
 from tests.factories.database_records import TEST_USER_ID
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
 
@@ -18,18 +17,7 @@ class _Capture(logging.Handler):
         self.messages.append(record.getMessage())
 
 
-def test_get_logger_dep_resolves_the_named_logger() -> None:
-    app = FastAPI()
-
-    @app.get("/logger")
-    def read_logger(logger: get_logger_dep("auth")) -> dict[str, str]:
-        return {"name": logger.name}
-
-    with TestClient(app) as client:
-        response = client.get("/logger")
-
-    assert response.status_code == 200
-    assert response.json() == {"name": "app.auth"}
+def test_logger_dependency_reuses_provider_for_qualified_names() -> None:
     assert logger_dependency("auth") is logger_dependency("app.auth")
 
 

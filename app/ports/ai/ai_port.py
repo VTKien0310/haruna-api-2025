@@ -1,10 +1,11 @@
+import logging
 import re
 from typing import Annotated
 
 import httpx
 from fastapi import Depends
 
-from app.core import LongReadHttpClientDep, get_logger_dep, settings
+from app.core import LongReadHttpClientDep, logger_dependency, settings
 
 from .ai_request import AiRequestMessage
 from .ai_response import AiResponseFormat
@@ -18,7 +19,7 @@ class AiApiPort:
         endpoint: str,
         api_key: str,
         http_client: httpx.AsyncClient,
-        logger: get_logger_dep("ai"),
+        logger: Annotated[logging.Logger, Depends(logger_dependency("ai"))],
     ) -> None:
         self.__endpoint = endpoint
         self.__api_key = api_key
@@ -76,7 +77,8 @@ class AiApiPort:
 
 
 def get_ai_port(
-    http_client: LongReadHttpClientDep, logger: get_logger_dep("ai")
+    http_client: LongReadHttpClientDep,
+    logger: Annotated[logging.Logger, Depends(logger_dependency("ai"))],
 ) -> AiApiPort:
     return AiApiPort(
         endpoint=settings.AI_API_ENDPOINT,

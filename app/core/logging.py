@@ -4,10 +4,7 @@ import sys
 import time
 import traceback
 from collections.abc import Callable
-from typing import Annotated
 from urllib.parse import urlsplit
-
-from fastapi import Depends
 
 from .config import settings
 
@@ -55,7 +52,7 @@ class _RedactingFilter(logging.Filter):
         return True
 
 
-def configure_logging(level: str | None = None) -> None:
+def _configure_logging(level: str | None = None) -> None:
     """Attach one stderr handler to the ``app`` logger.
 
     Safe to call again: a second call updates the level and does not add
@@ -85,6 +82,16 @@ def configure_logging(level: str | None = None) -> None:
         logger.warning("invalid LOG_LEVEL; using INFO")
 
 
+def _configure_logging_on_import() -> None:
+    """Attach the app handler as soon as this module is imported."""
+    _configure_logging()
+
+
+def apply_log_level_for_application(level: str | None = None) -> None:
+    """Apply ``settings.LOG_LEVEL``, or ``level`` when a test passes one."""
+    _configure_logging(level)
+
+
 def get_logger(name: str) -> logging.Logger:
     """Return a logger under ``app``.
 
@@ -111,11 +118,6 @@ def logger_dependency(name: str) -> Callable[[], logging.Logger]:
     provide.__qualname__ = provide.__name__
     _logger_providers[qualified] = provide
     return provide
-
-
-def get_logger_dep(name: str) -> Annotated[logging.Logger, Depends]:
-    """Return an annotation that injects the named ``app`` logger."""
-    return Annotated[logging.Logger, Depends(logger_dependency(name))]
 
 
 def _qualified_logger_name(name: str) -> str:
@@ -197,4 +199,4 @@ def _redact(text: str) -> str:
     return _BEARER.sub("Bearer [redacted]", redacted)
 
 
-configure_logging()
+_configure_logging_on_import()
