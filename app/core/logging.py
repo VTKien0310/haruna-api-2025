@@ -3,7 +3,11 @@ import re
 import sys
 import time
 import traceback
+from collections.abc import Callable
+from typing import Annotated
 from urllib.parse import urlsplit
+
+from fastapi import Depends
 
 from .config import settings
 
@@ -20,6 +24,7 @@ _LEVELS = {
 }
 _BEARER = re.compile(r"(?i)\bBearer\s+\S+")
 _reported_invalid_level: str | None = None
+_logger_providers: dict[str, Callable[[], logging.Logger]] = {}
 
 
 class _AppFormatter(logging.Formatter):
@@ -85,12 +90,41 @@ def get_logger(name: str) -> logging.Logger:
 
     ``get_logger("auth")`` and ``get_logger("app.auth")`` are both ``app.auth``.
     """
+    return logging.getLogger(_qualified_logger_name(name))
+
+
+def logger_dependency(name: str) -> Callable[[], logging.Logger]:
+    """Return the stable FastAPI dependency callable for ``app.<name>``.
+
+    Tests override this callable with ``app.dependency_overrides``.
+    """
+    qualified = _qualified_logger_name(name)
+    provider = _logger_providers.get(qualified)
+    if provider is not None:
+        return provider
+
+    def provide(logger_name: str = qualified) -> logging.Logger:
+        return get_logger(logger_name)
+
+    suffix = qualified.removeprefix(f"{_LOGGER_NAME}.").replace(".", "_")
+    provide.__name__ = f"get_{suffix or _LOGGER_NAME}_logger"
+    provide.__qualname__ = provide.__name__
+    _logger_providers[qualified] = provide
+    return provide
+
+
+def get_logger_dep(name: str) -> Annotated[logging.Logger, Depends]:
+    """Return an annotation that injects the named ``app`` logger."""
+    return Annotated[logging.Logger, Depends(logger_dependency(name))]
+
+
+def _qualified_logger_name(name: str) -> str:
     cleaned = name.strip().strip(".")
     if not cleaned or cleaned == _LOGGER_NAME:
-        return logging.getLogger(_LOGGER_NAME)
+        return _LOGGER_NAME
     if cleaned.startswith(f"{_LOGGER_NAME}."):
-        return logging.getLogger(cleaned)
-    return logging.getLogger(f"{_LOGGER_NAME}.{cleaned}")
+        return cleaned
+    return f"{_LOGGER_NAME}.{cleaned}"
 
 
 _logger = get_logger("core")

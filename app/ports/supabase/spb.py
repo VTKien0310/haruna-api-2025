@@ -1,13 +1,12 @@
-import logging
 import re
 from functools import lru_cache
-from typing import Annotated, ClassVar
+from typing import Annotated
 
 import httpx
 from fastapi import Depends
 from supabase import Client, create_client
 
-from app.core import get_logger, settings
+from app.core import get_logger, get_logger_dep, settings
 
 _QUERY = re.compile(r"\?\S*")
 
@@ -25,7 +24,7 @@ def _log_supabase_http_failure(response: httpx.Response) -> None:
     try:
         if response.status_code < 400:
             return
-        SupabasePort._logger.warning(
+        get_logger("supabase").warning(
             "supabase request failed method=%s url=%s status=%s",
             response.request.method,
             _QUERY.sub("", str(response.request.url)),
@@ -47,9 +46,10 @@ def _watch_http_client(http_client: object) -> None:
 
 
 class SupabasePort:
-    _logger: ClassVar[logging.Logger] = get_logger("supabase")
-
-    def __init__(self):
+    def __init__(self, logger: get_logger_dep("supabase")) -> None:
+        # The httpx hook below cannot see this instance. It logs with
+        # get_logger("supabase"), the same logger this dependency provides.
+        self.__logger = logger
         self.__client = _get_supabase_client()
         self.__watch_external_calls()
 

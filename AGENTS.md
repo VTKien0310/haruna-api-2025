@@ -85,9 +85,10 @@ CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_to
   placeholders unless asked.
 - Domain errors use `AppException`. Standard HTTP errors use `HTTPException`. Success responses are wrapped
   automatically by middleware as `{"ok": true, "content": ...}`.
-- Log with `get_logger` from `app.core`. `get_logger("auth")` is `app.auth`. Put `_logger` on the class that logs
-  and read it as `self._logger` or `cls._logger`. A function with no class keeps a module-level logger. Do not attach
-  a handler outside `configure_logging`. Never log passwords, tokens, or service keys.
+- Log with `get_logger` from `app.core`. `get_logger("auth")` is `app.auth`. A route, guard, or port constructor
+  takes `get_logger_dep("auth")`. Tests override `logger_dependency("auth")`. Middleware, the unhandled-exception
+  handler, lifespan, `log_startup`, httpx hooks, and `configure_logging` call `get_logger` directly. Do not attach a
+  handler outside `configure_logging`. Never log passwords, tokens, or service keys.
 
 ## Supabase vs API
 

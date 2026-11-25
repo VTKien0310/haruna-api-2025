@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from app.core import get_logger
 from app.ports.ai import (
     AiApiPort,
     AiJsonObjectResponseFormat,
@@ -34,7 +35,9 @@ async def test_ai_fake_rejects_an_unconfigured_call(ai: AiApiFake) -> None:
 
 async def test_ai_port_cannot_open_a_connection() -> None:
     async with httpx.AsyncClient() as http_client:
-        port = AiApiPort("http://ai.invalid", "dummy-test-key", http_client)
+        port = AiApiPort(
+            "http://ai.invalid", "dummy-test-key", http_client, get_logger("ai")
+        )
         with pytest.raises(RuntimeError, match="Unexpected external interaction"):
             await port.chat_completion(
                 "test-model",
@@ -47,6 +50,6 @@ async def test_ai_port_cannot_open_a_connection() -> None:
 
 def test_real_supabase_port_cannot_be_constructed() -> None:
     with pytest.raises(RuntimeError, match="Supabase client construction"):
-        SupabasePort()
+        SupabasePort(get_logger("supabase"))
     with pytest.raises(AssertionError, match="Supabase client construction"):
         assert_no_unexpected_interactions()

@@ -10,6 +10,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
+from app.core import get_logger
 from app.core.config import settings
 from app.ports.supabase import AccessTokenPort, VerifiedAccessToken
 
@@ -80,7 +81,7 @@ async def _verify(token: str, *, transport: httpx.MockTransport | None = None):
 
         transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        return await AccessTokenPort(http_client).verify(token)
+        return await AccessTokenPort(http_client, get_logger("auth")).verify(token)
 
 
 async def test_es256_token_returns_the_subject_and_audience() -> None:

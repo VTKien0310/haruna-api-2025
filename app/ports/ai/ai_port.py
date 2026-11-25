@@ -1,11 +1,10 @@
-import logging
 import re
-from typing import Annotated, ClassVar
+from typing import Annotated
 
 import httpx
 from fastapi import Depends
 
-from app.core import LongReadHttpClientDep, get_logger, settings
+from app.core import LongReadHttpClientDep, get_logger_dep, settings
 
 from .ai_request import AiRequestMessage
 from .ai_response import AiResponseFormat
@@ -14,14 +13,17 @@ _QUERY = re.compile(r"\?\S*")
 
 
 class AiApiPort:
-    _logger: ClassVar[logging.Logger] = get_logger("ai")
-
     def __init__(
-        self, endpoint: str, api_key: str, http_client: httpx.AsyncClient
+        self,
+        endpoint: str,
+        api_key: str,
+        http_client: httpx.AsyncClient,
+        logger: get_logger_dep("ai"),
     ) -> None:
         self.__endpoint = endpoint
         self.__api_key = api_key
         self.__http_client = http_client
+        self.__logger = logger
 
     async def chat_completion(
         self,
@@ -60,12 +62,12 @@ class AiApiPort:
         self, *, status_code: int | None = None, error: Exception | None = None
     ) -> None:
         if error is None:
-            self._logger.warning(
+            self.__logger.warning(
                 "ai request failed operation=chat_completion status=%s",
                 status_code,
             )
             return
-        self._logger.warning(
+        self.__logger.warning(
             "ai request failed operation=chat_completion status=%s error=%s: %s",
             "" if status_code is None else status_code,
             type(error).__name__,
@@ -73,11 +75,14 @@ class AiApiPort:
         )
 
 
-def get_ai_port(http_client: LongReadHttpClientDep) -> AiApiPort:
+def get_ai_port(
+    http_client: LongReadHttpClientDep, logger: get_logger_dep("ai")
+) -> AiApiPort:
     return AiApiPort(
         endpoint=settings.AI_API_ENDPOINT,
         api_key=settings.AI_API_KEY,
         http_client=http_client,
+        logger=logger,
     )
 
 
