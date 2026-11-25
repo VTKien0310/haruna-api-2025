@@ -35,7 +35,7 @@
     - `app/core/` — settings, bootstrap, logging, `AppException`, response wrapping, and shared HTTP clients
 - Must take loggers from `get_logger` in `app.core`. `get_logger("auth")` is the logger `app.auth`. A FastAPI-built
   feature dependency uses its feature's `<Name>LoggerDep` from `app/features/<feature>/logger.py`, such as
-  `AuthenticationLoggerDep`. Ports currently use core `get_logger_dep()` until their separate migration. Tests replace
+  `AuthenticationLoggerDep`. Port constructors use `Annotated[logging.Logger, Depends(logger_dependency(name))]` directly. Tests replace
   a logger through `app.dependency_overrides[logger_dependency(name)]`. `_configure_logging_on_import` runs when the
   logging module is imported. `apply_log_level_for_application` runs when the app is built. Do not add a handler in a
   feature, port, or middleware. Middleware, the unhandled-exception handler, lifespan, `log_startup`, and httpx event

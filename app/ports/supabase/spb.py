@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import lru_cache
 from typing import Annotated
@@ -6,7 +7,7 @@ import httpx
 from fastapi import Depends
 from supabase import Client, create_client
 
-from app.core import get_logger, get_logger_dep, settings
+from app.core import get_logger, logger_dependency, settings
 
 _QUERY = re.compile(r"\?\S*")
 
@@ -46,7 +47,9 @@ def _watch_http_client(http_client: object) -> None:
 
 
 class SupabasePort:
-    def __init__(self, logger: get_logger_dep("supabase")) -> None:
+    def __init__(
+        self, logger: Annotated[logging.Logger, Depends(logger_dependency("supabase"))]
+    ) -> None:
         # The httpx hook below cannot see this instance. It logs with
         # get_logger("supabase"), the same logger this dependency provides.
         self.__logger = logger

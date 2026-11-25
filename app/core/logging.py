@@ -4,10 +4,7 @@ import sys
 import time
 import traceback
 from collections.abc import Callable
-from typing import Annotated
 from urllib.parse import urlsplit
-
-from fastapi import Depends
 
 from .config import settings
 
@@ -121,11 +118,6 @@ def logger_dependency(name: str) -> Callable[[], logging.Logger]:
     provide.__qualname__ = provide.__name__
     _logger_providers[qualified] = provide
     return provide
-
-
-def get_logger_dep(name: str) -> Annotated[logging.Logger, Depends]:
-    """Return an annotation that injects the named ``app`` logger."""
-    return Annotated[logging.Logger, Depends(logger_dependency(name))]
 
 
 def _qualified_logger_name(name: str) -> str:

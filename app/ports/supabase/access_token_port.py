@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 import time
 from contextvars import ContextVar
@@ -11,7 +12,7 @@ import jwt
 from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
-from app.core import BasicHttpClientDep, get_logger_dep, settings
+from app.core import BasicHttpClientDep, logger_dependency, settings
 
 _QUERY = re.compile(r"\?\S*")
 
@@ -60,7 +61,9 @@ class AccessTokenPort:
     __jwks_lock_loop: ClassVar[asyncio.AbstractEventLoop | None] = None
 
     def __init__(
-        self, http_client: BasicHttpClientDep, logger: get_logger_dep("auth")
+        self,
+        http_client: BasicHttpClientDep,
+        logger: Annotated[logging.Logger, Depends(logger_dependency("auth"))],
     ) -> None:
         self.__http_client = http_client
         self.__logger = logger
