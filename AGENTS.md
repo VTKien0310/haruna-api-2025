@@ -14,7 +14,7 @@ simple, readable, composable solutions, and keep the HTTP layer, features, and e
 
 ```
 app/
-├── core/          # Config, bootstrap, error handling, response wrapping
+├── core/          # Config, bootstrap, logging, error handling, response wrapping
 ├── database/      # SQLModel table models, async sessions, and transactions (no migrations)
 ├── features/      # Domain logic organized by feature (auth, media, ...)
 │   ├── data/      # Readers (queries) and Writers (commands) via Supabase or SQLModel
@@ -85,6 +85,13 @@ CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_to
   placeholders unless asked.
 - Domain errors use `AppException`. Standard HTTP errors use `HTTPException`. Success responses are wrapped
   automatically by middleware as `{"ok": true, "content": ...}`.
+- Log with `get_logger` from `app.core`. `get_logger("auth")` is `app.auth`. A FastAPI-built feature dependency uses
+  its feature's `<Name>LoggerDep` from `app/features/<feature>/logger.py`; for example, `AuthenticationLoggerDep`
+  injects `app.auth`. Port constructors use `Annotated[logging.Logger, Depends(logger_dependency(name))]` directly. Tests override
+  `logger_dependency(name)`. Middleware, the unhandled-exception handler, lifespan, `log_startup`, and httpx hooks call
+  `get_logger` directly. `_configure_logging_on_import` runs when the logging module is imported.
+  `apply_log_level_for_application` runs when the app is built. Do not attach a handler outside `_configure_logging`.
+  Never log passwords, tokens, or service keys.
 
 ## Supabase vs API
 

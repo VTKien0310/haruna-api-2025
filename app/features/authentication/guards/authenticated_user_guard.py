@@ -1,18 +1,18 @@
 import asyncio
+import logging
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from typing import Annotated
 
 from app.features.authentication.entities import User
+from app.features.authentication.logger import AuthenticationLoggerDep
 from app.ports.supabase import AccessTokenPortDep, SupabasePortDep
 from app.ports.supabase.access_token_port import (
     AccessTokenFailure,
-    auth_logger,
     consume_access_token_failure,
 )
 
-logger = auth_logger()
 security = HTTPBearer()
 
 
@@ -20,6 +20,7 @@ async def _get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     verifier: AccessTokenPortDep,
     supabase: SupabasePortDep,
+    logger: AuthenticationLoggerDep,
 ) -> User:
     token = credentials.credentials
     local_error: Exception | None = None
@@ -45,11 +46,13 @@ async def _get_user_from_supabase_token(
         spb_response = None
 
     if spb_response is not None and spb_response.user is not None:
-        _log_local_failure(local_error, fallback="succeeded")
+        _log_local_failure(logger, local_error, fallback="succeeded")
         logger.info("access token authenticated path=fallback")
         return User.from_spb_auth(spb_response.user)
 
-    _log_local_failure(local_error, fallback="failed", fallback_error=fallback_error)
+    _log_local_failure(
+        logger, local_error, fallback="failed", fallback_error=fallback_error
+    )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
@@ -58,6 +61,7 @@ async def _get_user_from_supabase_token(
 
 
 def _log_local_failure(
+    logger: logging.Logger,
     local_error: Exception | None,
     *,
     fallback: str,

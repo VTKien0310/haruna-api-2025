@@ -1,11 +1,16 @@
 import logging
 import time
+from typing import ClassVar
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core import get_logger
+
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):
+    _logger: ClassVar[logging.Logger] = get_logger("request")
+
     async def dispatch(self, request: Request, call_next):
         started = time.perf_counter()
         try:
@@ -27,14 +32,10 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     def __log_request(
         cls, request: Request, status_code: int, elapsed_ms: float
     ) -> None:
-        cls.__get_logger().info(
+        cls._logger.info(
             "request method=%s path=%s status=%s duration_ms=%.1f",
             request.method,
             request.url.path,
             status_code,
             elapsed_ms,
         )
-
-    @classmethod
-    def __get_logger(cls) -> logging.Logger:
-        return logging.getLogger("app.request")

@@ -32,7 +32,15 @@
       `entities/`, `guards/`, `requests/`, and `services/` as needed
     - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`)
     - `app/database/` — SQLModel table models and asynchronous PostgreSQL session and transaction management
-    - `app/core/` — settings, bootstrap, `AppException`, response wrapping, and shared HTTP clients
+    - `app/core/` — settings, bootstrap, logging, `AppException`, response wrapping, and shared HTTP clients
+- Must take loggers from `get_logger` in `app.core`. `get_logger("auth")` is the logger `app.auth`. A FastAPI-built
+  feature dependency uses its feature's `<Name>LoggerDep` from `app/features/<feature>/logger.py`, such as
+  `AuthenticationLoggerDep`. Port constructors use `Annotated[logging.Logger, Depends(logger_dependency(name))]` directly. Tests replace
+  a logger through `app.dependency_overrides[logger_dependency(name)]`. `_configure_logging_on_import` runs when the
+  logging module is imported. `apply_log_level_for_application` runs when the app is built. Do not add a handler in a
+  feature, port, or middleware. Middleware, the unhandled-exception handler, lifespan, `log_startup`, and httpx event
+  hooks call `get_logger` directly because FastAPI does not inject their arguments. Handlers are attached only inside
+  `_configure_logging`. Never log passwords, access tokens, authorization headers, service keys, or other secrets
 - Must implement services, readers, and writers as classes with `handle()`. Inject dependencies in `__init__` and
   export a `*Dep = Annotated[T, Depends()]` alias. _Ex: `FindMediaByIdReader`_
 - Direct-database services inject `DbSessionManagerDep`. Use `.session()` for reads and `.transaction()` for atomic

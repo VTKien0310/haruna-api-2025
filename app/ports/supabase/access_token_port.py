@@ -12,28 +12,9 @@ import jwt
 from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
-from app.core import BasicHttpClientDep, settings
+from app.core import BasicHttpClientDep, logger_dependency, settings
 
 _QUERY = re.compile(r"\?\S*")
-_auth_logger_configured = False
-
-
-def auth_logger() -> logging.Logger:
-    """Info and warning on stderr so `fly logs` shows auth decisions."""
-    global _auth_logger_configured
-    log = logging.getLogger("app.auth")
-    if not _auth_logger_configured:
-        log.setLevel(logging.INFO)
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
-        log.addHandler(handler)
-        log.propagate = False
-        _auth_logger_configured = True
-    return log
-
-
-logger = auth_logger()
 
 
 @dataclass(frozen=True)
@@ -79,8 +60,13 @@ class AccessTokenPort:
     __jwks_lock: ClassVar[asyncio.Lock | None] = None
     __jwks_lock_loop: ClassVar[asyncio.AbstractEventLoop | None] = None
 
-    def __init__(self, http_client: BasicHttpClientDep) -> None:
+    def __init__(
+        self,
+        http_client: BasicHttpClientDep,
+        logger: Annotated[logging.Logger, Depends(logger_dependency("auth"))],
+    ) -> None:
         self.__http_client = http_client
+        self.__logger = logger
         self.__supabase_url = settings.SUPABASE_URL
         self.__supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY
 
@@ -426,8 +412,8 @@ class AccessTokenPort:
             )
         )
 
-    @staticmethod
     def __log_jwks(
+        self,
         *,
         cache: str,
         status: object,
@@ -441,7 +427,7 @@ class AccessTokenPort:
             if isinstance(item.get("kid", ""), str)
         )
         if error is None:
-            logger.info(
+            self.__logger.info(
                 "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s",
                 cache,
                 status,
@@ -450,7 +436,7 @@ class AccessTokenPort:
                 kids,
             )
             return
-        logger.warning(
+        self.__logger.warning(
             "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s error=%s: %s",
             cache,
             status,
