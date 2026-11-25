@@ -55,7 +55,7 @@ class _RedactingFilter(logging.Filter):
         return True
 
 
-def configure_logging(level: str | None = None) -> None:
+def _configure_logging(level: str | None = None) -> None:
     """Attach one stderr handler to the ``app`` logger.
 
     Safe to call again: a second call updates the level and does not add
@@ -83,6 +83,16 @@ def configure_logging(level: str | None = None) -> None:
     if invalid and _reported_invalid_level != raw:
         _reported_invalid_level = raw
         logger.warning("invalid LOG_LEVEL; using INFO")
+
+
+def _configure_logging_on_import() -> None:
+    """Attach the app handler as soon as this module is imported."""
+    _configure_logging()
+
+
+def apply_log_level_for_application(level: str | None = None) -> None:
+    """Apply ``settings.LOG_LEVEL``, or ``level`` when a test passes one."""
+    _configure_logging(level)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -197,4 +207,4 @@ def _redact(text: str) -> str:
     return _BEARER.sub("Bearer [redacted]", redacted)
 
 
-configure_logging()
+_configure_logging_on_import()

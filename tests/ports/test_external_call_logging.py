@@ -3,7 +3,7 @@ import logging
 import httpx
 import pytest
 
-from app.core import configure_logging, get_logger, settings
+from app.core import apply_log_level_for_application, get_logger, settings
 from app.ports.ai import (
     AiApiPort,
     AiJsonObjectResponseFormat,
@@ -27,7 +27,7 @@ def _stderr_text(record: logging.LogRecord) -> str:
 async def test_ai_http_failure_keeps_the_body_and_omits_secrets(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     secret = settings.AI_API_KEY
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -63,7 +63,7 @@ async def test_ai_http_failure_keeps_the_body_and_omits_secrets(
 async def test_ai_transport_error_is_logged_without_the_api_key(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     secret = settings.AI_API_KEY
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -98,7 +98,7 @@ async def test_ai_transport_error_is_logged_without_the_api_key(
 def test_supabase_http_failure_log_omits_keys_and_query(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     secret = settings.SUPABASE_SERVICE_ROLE_KEY
     http_client = httpx.Client()
     _watch_http_client(http_client)

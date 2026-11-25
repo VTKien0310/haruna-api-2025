@@ -4,7 +4,7 @@ import re
 import pytest
 
 from app import create_app
-from app.core import configure_logging, get_logger, log_startup, settings
+from app.core import apply_log_level_for_application, get_logger, log_startup, settings
 
 _LINE = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z INFO app\.request request method=GET "
@@ -20,9 +20,9 @@ def _stderr_handlers() -> list[logging.Handler]:
     ]
 
 
-def test_configure_logging_is_idempotent() -> None:
-    configure_logging("DEBUG")
-    configure_logging("WARNING")
+def test_apply_log_level_for_application_is_idempotent() -> None:
+    apply_log_level_for_application("DEBUG")
+    apply_log_level_for_application("WARNING")
     create_app()
 
     logger = logging.getLogger("app")
@@ -30,17 +30,17 @@ def test_configure_logging_is_idempotent() -> None:
     assert logger.level == logging.INFO
     assert len(_stderr_handlers()) == 1
 
-    configure_logging("DEBUG")
-    configure_logging("DEBUG")
+    apply_log_level_for_application("DEBUG")
+    apply_log_level_for_application("DEBUG")
     assert logger.level == logging.DEBUG
     assert len(_stderr_handlers()) == 1
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
 
 
 def test_app_request_and_auth_emit_info_records(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     get_logger("request").info(
         "request method=GET path=/health status=200 duration_ms=1.0"
     )
@@ -60,7 +60,7 @@ def test_app_request_and_auth_emit_info_records(
 def test_log_line_has_timestamp_level_name_and_message(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     get_logger("request").info("request method=GET path=/health status=200")
     record = next(record for record in caplog.records if record.name == "app.request")
     rendered = _stderr_handlers()[0].format(record)
@@ -70,7 +70,7 @@ def test_log_line_has_timestamp_level_name_and_message(
 def test_records_do_not_propagate_to_the_root_logger(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     root_records: list[logging.LogRecord] = []
 
     class _RootProbe(logging.Handler):
@@ -89,12 +89,12 @@ def test_records_do_not_propagate_to_the_root_logger(
 
 
 def test_warning_level_hides_info_records(caplog: pytest.LogCaptureFixture) -> None:
-    configure_logging("WARNING")
+    apply_log_level_for_application("WARNING")
     try:
         get_logger("request").info("hidden-info-marker")
         get_logger("request").warning("shown-warning-marker")
     finally:
-        configure_logging("INFO")
+        apply_log_level_for_application("INFO")
 
     messages = " ".join(caplog.messages)
     assert "hidden-info-marker" not in messages
@@ -102,16 +102,16 @@ def test_warning_level_hides_info_records(caplog: pytest.LogCaptureFixture) -> N
 
 
 def test_invalid_log_level_uses_info(caplog: pytest.LogCaptureFixture) -> None:
-    configure_logging("not-a-level")
+    apply_log_level_for_application("not-a-level")
     try:
         assert logging.getLogger("app").level == logging.INFO
         assert "invalid LOG_LEVEL; using INFO" in caplog.messages
     finally:
-        configure_logging("INFO")
+        apply_log_level_for_application("INFO")
 
 
 def test_startup_log_omits_secret_values(caplog: pytest.LogCaptureFixture) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     log_startup()
     rendered = _stderr_handlers()[0].format(
         next(record for record in caplog.records if "startup " in record.getMessage())
@@ -130,7 +130,7 @@ def test_startup_log_omits_secret_values(caplog: pytest.LogCaptureFixture) -> No
 def test_handler_redacts_secrets_and_bearer_tokens(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    configure_logging("INFO")
+    apply_log_level_for_application("INFO")
     get_logger("core").info(
         "db=%s key=%s ai=%s Authorization=Bearer %s",
         settings.DB_PASSWORD,

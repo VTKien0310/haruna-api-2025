@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from .config import settings
 from .error import register_error_handlers
-from .logging import configure_logging
+from .logging import apply_log_level_for_application
 from .openapi import apply_openapi_schema
 from .response import apply_global_response_interface
 
@@ -15,7 +15,7 @@ def bootstrap_application(
     lifespan_handler: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
     app_router_registry: List[APIRouter] | None = None,
 ) -> FastAPI:
-    configure_logging()
+    apply_log_level_for_application()
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
