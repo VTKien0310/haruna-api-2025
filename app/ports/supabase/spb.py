@@ -1,6 +1,7 @@
+import logging
 import re
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 import httpx
 from fastapi import Depends
@@ -24,7 +25,7 @@ def _log_supabase_http_failure(response: httpx.Response) -> None:
     try:
         if response.status_code < 400:
             return
-        get_logger("supabase").warning(
+        SupabasePort._logger.warning(
             "supabase request failed method=%s url=%s status=%s",
             response.request.method,
             _QUERY.sub("", str(response.request.url)),
@@ -46,6 +47,8 @@ def _watch_http_client(http_client: object) -> None:
 
 
 class SupabasePort:
+    _logger: ClassVar[logging.Logger] = get_logger("supabase")
+
     def __init__(self):
         self.__client = _get_supabase_client()
         self.__watch_external_calls()

@@ -12,6 +12,8 @@ from .database import init_db_session_manager
 from .http.middlewares import middleware_registry
 from .http.routers import api_router_registry, app_router_registry
 
+_logger = get_logger("core")
+
 
 @asynccontextmanager
 async def lifespan_handler(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -21,7 +23,7 @@ async def lifespan_handler(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.db_session_manager = init_db_session_manager()
         log_startup()
     except Exception:
-        get_logger("core").exception("startup failed")
+        _logger.exception("startup failed")
         raise
 
     try:

@@ -5,6 +5,8 @@ from starlette.responses import PlainTextResponse
 
 from .logging import get_logger
 
+_logger = get_logger("error")
+
 
 async def _http_exception_handler(request: Request, exc: HTTPException):
     error_code = {
@@ -72,7 +74,7 @@ async def _unhandled_exception_handler(
 ) -> PlainTextResponse:
     # Starlette uses the Exception handler as the outermost server-error
     # handler. Return the same plain-text 500 it would send on its own.
-    get_logger("error").error(
+    _logger.error(
         "unhandled exception method=%s path=%s error=%s",
         request.method,
         request.url.path,

@@ -93,9 +93,12 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"{_LOGGER_NAME}.{cleaned}")
 
 
+_logger = get_logger("core")
+
+
 def log_startup() -> None:
     """Log the process configuration without secret values."""
-    get_logger("core").info(
+    _logger.info(
         "startup environment=%s name=%s version=%s port=%s docs=%s "
         "api_prefix=%s log_level=%s db_host=%s db_port=%s db_name=%s "
         "db_schema=%s db_user_set=%s db_password_set=%s supabase_host=%s "
