@@ -3,7 +3,7 @@ import logging
 import httpx
 import pytest
 
-from app.core import configure_logging, settings
+from app.core import configure_logging, get_logger, settings
 from app.ports.ai import (
     AiApiPort,
     AiJsonObjectResponseFormat,
@@ -39,6 +39,7 @@ async def test_ai_http_failure_keeps_the_body_and_omits_secrets(
             endpoint="http://ai.invalid",
             api_key=secret,
             http_client=http_client,
+            logger=get_logger("ai"),
         )
         with caplog.at_level(logging.WARNING, logger="app.ai"):
             body = await port.chat_completion(
@@ -73,6 +74,7 @@ async def test_ai_transport_error_is_logged_without_the_api_key(
             endpoint="http://ai.invalid",
             api_key=secret,
             http_client=http_client,
+            logger=get_logger("ai"),
         )
         with caplog.at_level(logging.WARNING, logger="app.ai"):
             with pytest.raises(httpx.ConnectError):

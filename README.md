@@ -48,7 +48,7 @@ cp .env.example .env
 
 The API writes its log lines to stderr. `fly logs` shows those lines. Fly.io does not need a new secret for logging.
 
-In application code, call `get_logger` from `app.core`. `get_logger("auth")` is the logger `app.auth`.
+A route, guard, or port constructor takes `get_logger_dep("auth")` from `app.core`. That injects the logger `app.auth`. Middleware and startup call `get_logger("auth")`.
 
 For direct PostgreSQL access, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_SCHEMA`.
 The asynchronous connection settings support Supabase's connection pooler as well as a direct database host. Keep the

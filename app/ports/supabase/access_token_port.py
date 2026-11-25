@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import re
 import time
 from contextvars import ContextVar
@@ -12,7 +11,7 @@ import jwt
 from fastapi import Depends
 from jwt import PyJWK, PyJWTError
 
-from app.core import BasicHttpClientDep, get_logger, settings
+from app.core import BasicHttpClientDep, get_logger_dep, settings
 
 _QUERY = re.compile(r"\?\S*")
 
@@ -46,7 +45,6 @@ def consume_access_token_failure() -> AccessTokenFailure | None:
 
 
 class AccessTokenPort:
-    _logger: ClassVar[logging.Logger] = get_logger("auth")
     __ASYMMETRIC_ALGORITHMS: ClassVar[frozenset[str]] = frozenset({"ES256", "RS256"})
     __AUTHENTICATED: ClassVar[str] = "authenticated"
     __JWKS_TTL_SECONDS: ClassVar[int] = 60 * 60
@@ -61,8 +59,11 @@ class AccessTokenPort:
     __jwks_lock: ClassVar[asyncio.Lock | None] = None
     __jwks_lock_loop: ClassVar[asyncio.AbstractEventLoop | None] = None
 
-    def __init__(self, http_client: BasicHttpClientDep) -> None:
+    def __init__(
+        self, http_client: BasicHttpClientDep, logger: get_logger_dep("auth")
+    ) -> None:
         self.__http_client = http_client
+        self.__logger = logger
         self.__supabase_url = settings.SUPABASE_URL
         self.__supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY
 
@@ -408,9 +409,8 @@ class AccessTokenPort:
             )
         )
 
-    @classmethod
     def __log_jwks(
-        cls,
+        self,
         *,
         cache: str,
         status: object,
@@ -424,7 +424,7 @@ class AccessTokenPort:
             if isinstance(item.get("kid", ""), str)
         )
         if error is None:
-            cls._logger.info(
+            self.__logger.info(
                 "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s",
                 cache,
                 status,
@@ -433,7 +433,7 @@ class AccessTokenPort:
                 kids,
             )
             return
-        cls._logger.warning(
+        self.__logger.warning(
             "jwks fetch cache=%s status=%s url=%s keys=%s kids=%s error=%s: %s",
             cache,
             status,
