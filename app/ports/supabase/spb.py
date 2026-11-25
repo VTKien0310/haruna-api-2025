@@ -9,16 +9,35 @@ from supabase import Client, create_client
 
 from app.core import get_logger, logger_dependency, settings
 
+from .server_key import drop_non_jwt_bearer, is_legacy_jwt_api_key
+
 _QUERY = re.compile(r"\?\S*")
 
 
 @lru_cache()
 def _get_supabase_client() -> Client:
     """Create and cache a single Supabase client instance."""
-    return create_client(
+    api_key = settings.SUPABASE_SERVICE_ROLE_KEY
+    client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY,
+        supabase_key=api_key,
     )
+    _omit_non_jwt_bearer(client, api_key)
+    return client
+
+
+def _omit_non_jwt_bearer(client: Client, api_key: str) -> None:
+    """supabase-py also sends the key as `Authorization: Bearer`.
+
+    A secret key is not a JWT, so that header is removed. `get_user` still
+    sets `Authorization` to the caller's access token. A legacy JWT key is
+    left unchanged.
+    """
+    if is_legacy_jwt_api_key(api_key):
+        return
+    drop_non_jwt_bearer(client.options.headers, api_key)
+    auth_headers = getattr(getattr(client, "auth", None), "_headers", None)
+    drop_non_jwt_bearer(auth_headers, api_key)
 
 
 def _log_supabase_http_failure(response: httpx.Response) -> None:

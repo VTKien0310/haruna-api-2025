@@ -14,6 +14,8 @@ from jwt import PyJWK, PyJWTError
 
 from app.core import BasicHttpClientDep, logger_dependency, settings
 
+from .server_key import headers_for_server_key
+
 _QUERY = re.compile(r"\?\S*")
 
 
@@ -355,14 +357,9 @@ class AccessTokenPort:
 
     @staticmethod
     def __jwks_headers(api_key: str, *, bypass_cache: bool) -> dict[str, str]:
-        # Match the Supabase Python client: Auth requests send the server key
-        # as both apikey and Authorization. The hosted gateway rejects some
-        # Auth routes when Authorization is missing.
-        headers = {"Accept": "application/json"}
-        stripped = api_key.strip()
-        if stripped:
-            headers["apikey"] = stripped
-            headers["Authorization"] = f"Bearer {stripped}"
+        # A secret key is not a JWT. The gateway rejects it as a Bearer token.
+        # A legacy service_role JWT is still sent as Bearer.
+        headers = {"Accept": "application/json", **headers_for_server_key(api_key)}
         if bypass_cache:
             headers["Cache-Control"] = "no-cache"
             headers["Pragma"] = "no-cache"
