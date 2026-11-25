@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core import get_logger_dep
 from app.features.authentication.entities import User
+from app.features.authentication.logger import AuthenticationLoggerDep
 from app.ports.supabase import AccessTokenPortDep, SupabasePortDep
 from app.ports.supabase.access_token_port import (
     AccessTokenFailure,
@@ -20,7 +20,7 @@ async def _get_user_from_supabase_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     verifier: AccessTokenPortDep,
     supabase: SupabasePortDep,
-    logger: get_logger_dep("auth"),
+    logger: AuthenticationLoggerDep,
 ) -> User:
     token = credentials.credentials
     local_error: Exception | None = None

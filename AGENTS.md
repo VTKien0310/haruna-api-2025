@@ -85,11 +85,13 @@ CurrentAuthenticatedUserDep = Annotated[User, Depends(_get_user_from_supabase_to
   placeholders unless asked.
 - Domain errors use `AppException`. Standard HTTP errors use `HTTPException`. Success responses are wrapped
   automatically by middleware as `{"ok": true, "content": ...}`.
-- Log with `get_logger` from `app.core`. `get_logger("auth")` is `app.auth`. A route, guard, or port constructor
-  takes `get_logger_dep("auth")`. Tests override `logger_dependency("auth")`. Middleware, the unhandled-exception
-  handler, lifespan, `log_startup`, and httpx hooks call `get_logger` directly. `_configure_logging_on_import` runs when
-  the logging module is imported. `apply_log_level_for_application` runs when the app is built. Do not attach a handler
-  outside `_configure_logging`. Never log passwords, tokens, or service keys.
+- Log with `get_logger` from `app.core`. `get_logger("auth")` is `app.auth`. A FastAPI-built feature dependency uses
+  its feature's `<Name>LoggerDep` from `app/features/<feature>/logger.py`; for example, `AuthenticationLoggerDep`
+  injects `app.auth`. Ports currently take core `get_logger_dep()` until their separate migration. Tests override
+  `logger_dependency(name)`. Middleware, the unhandled-exception handler, lifespan, `log_startup`, and httpx hooks call
+  `get_logger` directly. `_configure_logging_on_import` runs when the logging module is imported.
+  `apply_log_level_for_application` runs when the app is built. Do not attach a handler outside `_configure_logging`.
+  Never log passwords, tokens, or service keys.
 
 ## Supabase vs API
 
