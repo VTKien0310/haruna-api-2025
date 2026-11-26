@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     APP_ENABLE_DOCS: bool = False
     LOG_LEVEL: str = "INFO"
+    SLOW_REQUEST_THRESHOLD_MS: int = 5000
 
     API_PREFIX: str = "/api"
     API_ALLOW_ORIGINS: List[str] = [
@@ -38,6 +39,9 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = ""
     DB_NAME: str = ""
     DB_SCHEMA: str = "public"
+    DB_POOL_RECYCLE_SECONDS: int = 300
+    DB_COMMAND_TIMEOUT_SECONDS: int = 10
+    DB_CONNECT_TIMEOUT_SECONDS: int = 10
 
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""

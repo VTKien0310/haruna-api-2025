@@ -46,12 +46,20 @@ def _get_async_db_url() -> URL:
 
 
 def init_db_session_manager() -> DbSessionManager:
+    # server_settings is intentionally omitted. asyncpg sends it as PostgreSQL
+    # startup parameters, and Supavisor or PgBouncer in transaction mode rejects
+    # untracked ones such as statement_timeout. command_timeout is client-side
+    # and still bounds pool_pre_ping on a dead socket. asyncpg also has no
+    # connect() argument for TCP keepalives, so those are not set here.
     engine = create_async_engine(
         _get_async_db_url(),
         pool_pre_ping=True,
+        pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
         connect_args={
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
+            "timeout": settings.DB_CONNECT_TIMEOUT_SECONDS,
+            "command_timeout": settings.DB_COMMAND_TIMEOUT_SECONDS,
         },
     )
     return DbSessionManager(engine)
