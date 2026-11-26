@@ -35,7 +35,7 @@ from app.database import (
 )
 from app.ports.ai.ai_port import get_ai_port
 from app.ports.supabase import AccessTokenPort, SupabasePort
-from app.ports.supabase.spb import _get_supabase_client
+from app.ports.supabase.spb_port import _get_supabase_client
 from tests.fakes.access_token import AccessTokenFake
 from tests.fakes.ai import AiApiFake
 from tests.fakes.sqlite_supabase import SqliteSupabasePort
@@ -72,7 +72,9 @@ def _blocked_create_client(*args: object, **kwargs: object) -> None:
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch: pytest.MonkeyPatch):
     install_network_guard(monkeypatch)
-    monkeypatch.setattr("app.ports.supabase.spb.create_client", _blocked_create_client)
+    monkeypatch.setattr(
+        "app.ports.supabase.spb_port.create_client", _blocked_create_client
+    )
     monkeypatch.setattr("supabase.create_client", _blocked_create_client)
     _get_supabase_client.cache_clear()
     AccessTokenPort.clear_jwks_cache()

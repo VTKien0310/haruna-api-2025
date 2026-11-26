@@ -1,7 +1,7 @@
 # **STORAGE BUCKETS**
 
 Supabase Storage holds media bytes. The API reaches every bucket only through `SupabasePort`
-([app/ports/supabase/spb.py](../../app/ports/supabase/spb.py)). Object keys for originals live on `public.medias`
+([app/ports/supabase/spb_port.py](../../app/ports/supabase/spb_port.py)). Object keys for originals live on `public.medias`
 (`storage_path`, `thumbnail_path`). The table is in [erd.dbml](erd.dbml).
 
 This API writes only `resized`. It only reads `medias` and `thumbnails`. `POST /medias/videos` is still a stub, so

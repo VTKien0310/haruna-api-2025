@@ -10,7 +10,7 @@ from app.ports.ai import (
     AiRequestMessage,
     AiRequestRole,
 )
-from app.ports.supabase.spb import _log_supabase_http_failure, _watch_http_client
+from app.ports.supabase.spb_port import _log_supabase_http_failure, _watch_http_client
 
 _SOURCE_TEXT = "source text that must stay out of the log"
 

@@ -22,7 +22,7 @@ def test_create_client_is_only_used_by_the_supabase_port() -> None:
         for path in (ROOT / "app").rglob("*.py")
         if "create_client" in path.read_text(encoding="utf-8")
     ]
-    assert found == ["app/ports/supabase/spb.py"]
+    assert found == ["app/ports/supabase/spb_port.py"]
 
 
 def _imports_under(directory: str, forbidden: tuple[str, ...]) -> list[str]:

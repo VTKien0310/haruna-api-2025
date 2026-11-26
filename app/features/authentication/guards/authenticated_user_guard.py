@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.features.authentication.entities import User
 from app.features.authentication.logger import AuthenticationLoggerDep
 from app.ports.supabase import AccessTokenPortDep, SupabasePortDep
-from app.ports.supabase.access_token_port import (
+from app.ports.supabase.spb_access_token_port import (
     AccessTokenFailure,
     consume_access_token_failure,
 )
