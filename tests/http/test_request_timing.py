@@ -37,26 +37,17 @@ def _request_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
-def test_fast_request_logs_info_without_a_slow_warning(
+def test_fast_request_does_not_log(
     client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level(logging.INFO, logger="app.request"):
         response = client.get("/health")
 
     assert response.status_code == 200
-    messages = _request_messages(caplog)
-    assert any(
-        message.startswith("request method=GET path=/health status=200 duration_ms=")
-        for message in messages
-    )
-    assert not any(message.startswith("slow request ") for message in messages)
-    assert not any(
-        record.name == "app.request" and record.levelno == logging.WARNING
-        for record in caplog.records
-    )
+    assert _request_messages(caplog) == []
 
 
-def test_slow_request_keeps_info_and_logs_warning(
+def test_slow_request_logs_only_a_warning(
     client: TestClient,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -68,18 +59,17 @@ def test_slow_request_keeps_info_and_logs_warning(
     assert response.status_code == 200
     assert response.headers["X-Process-Time"] == "6.000000"
     messages = _request_messages(caplog)
-    assert "request method=GET path=/health status=200 duration_ms=6000.0" in messages
-    assert (
+    assert messages == [
         "slow request method=GET path=/health status=200 duration_ms=6000.0 "
         "threshold_ms=5000"
-    ) in messages
+    ]
     assert any(
         record.name == "app.request" and record.levelno == logging.WARNING
         for record in caplog.records
     )
 
 
-def test_request_at_the_slow_threshold_does_not_warn(
+def test_request_at_the_slow_threshold_does_not_log(
     client: TestClient,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -89,9 +79,7 @@ def test_request_at_the_slow_threshold_does_not_warn(
         response = client.get("/health")
 
     assert response.status_code == 200
-    messages = _request_messages(caplog)
-    assert "request method=GET path=/health status=200 duration_ms=5000.0" in messages
-    assert not any(message.startswith("slow request ") for message in messages)
+    assert _request_messages(caplog) == []
 
 
 def test_slow_request_warning_uses_the_configured_threshold(
@@ -105,9 +93,7 @@ def test_slow_request_warning_uses_the_configured_threshold(
         response = client.get("/health")
 
     assert response.status_code == 200
-    messages = _request_messages(caplog)
-    assert "request method=GET path=/health status=200 duration_ms=6000.0" in messages
-    assert not any(message.startswith("slow request ") for message in messages)
+    assert _request_messages(caplog) == []
 
     caplog.clear()
     monkeypatch.setattr(settings, "SLOW_REQUEST_THRESHOLD_MS", 1000)
@@ -116,13 +102,13 @@ def test_slow_request_warning_uses_the_configured_threshold(
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert (
+    assert _request_messages(caplog) == [
         "slow request method=GET path=/health status=200 duration_ms=1500.0 "
         "threshold_ms=1000"
-    ) in _request_messages(caplog)
+    ]
 
 
-def test_slow_failed_request_logs_info_and_warning(
+def test_slow_failed_request_logs_only_a_warning(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = create_app()
@@ -137,12 +123,7 @@ def test_slow_failed_request_logs_info_and_warning(
             response = client.get("/__slow_failure")
 
     assert response.status_code == 500
-    messages = _request_messages(caplog)
-    assert (
-        "request method=GET path=/__slow_failure status=500 duration_ms=6000.0"
-        in messages
-    )
-    assert (
+    assert _request_messages(caplog) == [
         "slow request method=GET path=/__slow_failure status=500 "
         "duration_ms=6000.0 threshold_ms=5000"
-    ) in messages
+    ]

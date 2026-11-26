@@ -32,13 +32,6 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     def __log_request(
         cls, request: Request, status_code: int, elapsed_ms: float
     ) -> None:
-        cls._logger.info(
-            "request method=%s path=%s status=%s duration_ms=%.1f",
-            request.method,
-            request.url.path,
-            status_code,
-            elapsed_ms,
-        )
         if elapsed_ms > settings.SLOW_REQUEST_THRESHOLD_MS:
             cls._logger.warning(
                 "slow request method=%s path=%s status=%s duration_ms=%.1f "

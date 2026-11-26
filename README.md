@@ -65,8 +65,8 @@ in transaction mode can reject untracked ones such as `statement_timeout`. The c
 that works through the pooler. TCP keepalives are not enabled: asyncpg's `connect()` has no keepalive argument, and
 setting socket options on the private transport is not used.
 
-`SLOW_REQUEST_THRESHOLD_MS` (default 5000) logs a warning for a request whose `duration_ms` exceeds that value. The
-info request line is unchanged. Leave it unset to use the default. No Fly secret is required.
+`SLOW_REQUEST_THRESHOLD_MS` (default 5000) logs a warning only for a request whose `duration_ms` exceeds that value.
+Leave it unset to use the default. No Fly secret is required.
 
 SQLModel table models describe the existing schema. This application does not manage migrations or create hosted
 tables at startup.
