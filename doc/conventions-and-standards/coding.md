@@ -30,7 +30,8 @@
       `middleware_registry` (`app/http/middlewares/__init__.py`) for `bootstrap_application` to apply
     - `app/features/` — domain logic, one package per feature (`auth`, `media`, `translation`), using `data/`,
       `entities/`, `guards/`, `requests/`, and `services/` as needed
-    - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`)
+    - `app/ports/` — adapters for external services (`SupabasePort`, `AiApiPort`). A port's `concerns/` package
+      holds helpers used only inside that port
     - `app/database/` — SQLModel table models and asynchronous PostgreSQL session and transaction management
     - `app/core/` — settings, bootstrap, logging, `AppException`, response wrapping, and shared HTTP clients
 - Must take loggers from `get_logger` in `app.core`. `get_logger("auth")` is the logger `app.auth`. A FastAPI-built
