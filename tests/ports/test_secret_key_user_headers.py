@@ -1,7 +1,7 @@
 import httpx
 from supabase_auth import SyncGoTrueClient
 
-from app.ports.supabase.server_key import headers_for_server_key
+from app.ports.supabase.concerns import headers_for_server_key
 
 _SECRET = "sb_secret_test_key_value"
 _USER_TOKEN = "header.payload.signature"

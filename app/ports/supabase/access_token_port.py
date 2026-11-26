@@ -14,7 +14,7 @@ from jwt import PyJWK, PyJWTError
 
 from app.core import BasicHttpClientDep, logger_dependency, settings
 
-from .server_key import headers_for_server_key
+from .concerns import headers_for_server_key
 
 _QUERY = re.compile(r"\?\S*")
 

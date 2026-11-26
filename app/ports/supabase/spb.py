@@ -9,7 +9,7 @@ from supabase import Client, create_client
 
 from app.core import get_logger, logger_dependency, settings
 
-from .server_key import drop_non_jwt_bearer, is_legacy_jwt_api_key
+from .concerns import drop_non_jwt_bearer, is_legacy_jwt_api_key
 
 _QUERY = re.compile(r"\?\S*")
 
