@@ -25,7 +25,7 @@ app/
 ├── http/          # HTTP routing and middleware
 │   ├── routers/   # FastAPI routers (thin, no business logic)
 │   └── middlewares/ # HTTP middleware
-├── ports/         # External service adapters (Supabase)
+├── ports/         # External service adapters (Supabase). concerns/ holds helpers used only inside a port
 ├── __init__.py    # App factory (create_app)
 └── main.py        # Entrypoint
 ```

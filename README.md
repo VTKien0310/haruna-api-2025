@@ -58,6 +58,8 @@ authentication, object storage, and simple table queries continue to use the Sup
 SQLModel table models describe the existing schema. This application does not manage migrations or create hosted
 tables at startup.
 
+`SUPABASE_SERVICE_ROLE_KEY` may be a secret key (`sb_secret_...`) or a legacy JWT `service_role` key. A secret key is sent only in the `apikey` header. A legacy JWT key is also sent as `Authorization: Bearer`.
+
 Protected routes verify the caller's Supabase access token in the API process. Public keys are loaded from
 `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Only ES256 and RS256 access tokens are accepted. Verification
 accepts a token until it expires and does not see a ban, deletion, or sign-out that happens earlier.

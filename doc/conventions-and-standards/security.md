@@ -55,7 +55,9 @@
       secrets, tokens, or service credentials
     - Must not commit `.env` or any file that contains credentials. `.env.example` lists names only
     - Must keep `SUPABASE_SERVICE_ROLE_KEY` (see Authorization), `DB_PASSWORD`, `AI_API_KEY`, and `AI_API_ENDPOINT`
-      in server-side configuration. Production overrides are set with Fly secrets
+      in server-side configuration. Production overrides are set with Fly secrets. A secret key
+      (`sb_secret_`) or publishable key (`sb_publishable_`) is not a JWT: send it only in the `apikey` header.
+      A legacy JWT `service_role` key may also be sent as `Authorization: Bearer`
     - See the [Supabase API key guide](https://supabase.com/docs/guides/getting-started/api-keys)
 - **Logging and error messages**
     - Must never log passwords, access tokens, authorization headers, service keys, or other application secrets.

@@ -100,6 +100,7 @@ async def test_es256_token_returns_the_subject_and_audience() -> None:
     assert len(calls) == 1
     assert str(calls[0].url) == f"{_ISSUER}/.well-known/jwks.json"
     assert calls[0].headers["apikey"] == settings.SUPABASE_SERVICE_ROLE_KEY
+    assert "authorization" not in calls[0].headers
 
 
 async def test_es256_created_at_claim_is_kept() -> None:
@@ -238,9 +239,58 @@ async def test_jwks_failure_is_rejected() -> None:
     assert verdict is None
 
 
+async def test_jwks_secret_key_is_sent_only_as_apikey(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "sb_secret_test_key_value"
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", secret)
+    private_key = _es256_key()
+    jwk = _public_jwk(private_key, "test-key")
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.headers.get("authorization"):
+            return httpx.Response(401, json={"message": "Invalid JWT"})
+        if request.headers.get("apikey") != secret:
+            return httpx.Response(401, json={"message": "Invalid API key"})
+        return httpx.Response(200, json={"keys": [jwk]})
+
+    verdict = await _verify(
+        _sign(private_key, "ES256", "test-key"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert isinstance(verdict, VerifiedAccessToken)
+    assert len(calls) == 1
+    assert calls[0].headers["apikey"] == secret
+    assert "authorization" not in calls[0].headers
+    assert secret not in calls[0].headers.get("authorization", "")
+
+
+async def test_jwks_legacy_jwt_key_is_also_sent_as_bearer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", legacy)
+    private_key = _es256_key()
+    calls: list[httpx.Request] = []
+    verdict = await _verify(
+        _sign(private_key, "ES256", "test-key"),
+        transport=_transport([_public_jwk(private_key, "test-key")], calls),
+    )
+
+    assert isinstance(verdict, VerifiedAccessToken)
+    assert calls[0].headers["apikey"] == legacy
+    assert calls[0].headers["authorization"] == f"Bearer {legacy}"
+
+
 async def test_supabase_es256_token_verifies_when_the_gateway_requires_authorization(
     caplog: logging.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    legacy = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", legacy)
     private_key = _es256_key()
     kid = "3a18cfe2-7226-43b0-bbb4-7c5242f2406e"
     jwk = _public_jwk(private_key, kid)
@@ -265,11 +315,9 @@ async def test_supabase_es256_token_verifies_when_the_gateway_requires_authoriza
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        if request.headers.get("authorization") != (
-            f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"
-        ):
+        if request.headers.get("authorization") != f"Bearer {legacy}":
             return httpx.Response(401, json={"message": "Invalid API key"})
-        if request.headers.get("apikey") != settings.SUPABASE_SERVICE_ROLE_KEY:
+        if request.headers.get("apikey") != legacy:
             return httpx.Response(401, json={"message": "Invalid API key"})
         return httpx.Response(200, json={"keys": [jwk]})
 
