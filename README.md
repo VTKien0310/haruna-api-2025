@@ -55,6 +55,19 @@ The asynchronous connection settings support Supabase's connection pooler as wel
 password in server-side environment configuration and use a least-privilege database role where practical. Supabase
 authentication, object storage, and simple table queries continue to use the Supabase client.
 
+Pooled connections are recycled after `DB_POOL_RECYCLE_SECONDS` (default 300) so a socket left idle overnight is not
+reused. `DB_COMMAND_TIMEOUT_SECONDS` (default 10) is asyncpg's per-command timeout and limits how long `pool_pre_ping`
+waits on a dead socket. `DB_CONNECT_TIMEOUT_SECONDS` (default 10) limits how long opening a connection may take. Leave
+them unset to use the defaults. Fly.io does not need a new secret for these values.
+
+Postgres `statement_timeout` is not sent. asyncpg `server_settings` are startup parameters, and Supavisor or PgBouncer
+in transaction mode can reject untracked ones such as `statement_timeout`. The client-side command timeout is the bound
+that works through the pooler. TCP keepalives are not enabled: asyncpg's `connect()` has no keepalive argument, and
+setting socket options on the private transport is not used.
+
+`SLOW_REQUEST_THRESHOLD_MS` (default 5000) logs a warning for a request whose `duration_ms` exceeds that value. The
+info request line is unchanged. Leave it unset to use the default. No Fly secret is required.
+
 SQLModel table models describe the existing schema. This application does not manage migrations or create hosted
 tables at startup.
 

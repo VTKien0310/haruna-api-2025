@@ -5,7 +5,7 @@ from typing import ClassVar
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core import get_logger
+from app.core import get_logger, settings
 
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):
@@ -39,3 +39,13 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
             status_code,
             elapsed_ms,
         )
+        if elapsed_ms > settings.SLOW_REQUEST_THRESHOLD_MS:
+            cls._logger.warning(
+                "slow request method=%s path=%s status=%s duration_ms=%.1f "
+                "threshold_ms=%s",
+                request.method,
+                request.url.path,
+                status_code,
+                elapsed_ms,
+                settings.SLOW_REQUEST_THRESHOLD_MS,
+            )
